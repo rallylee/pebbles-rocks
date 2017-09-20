@@ -163,6 +163,7 @@ struct CompactionJob::SubcompactionState {
 
   SubcompactionState& operator=(const SubcompactionState&) = delete;
 
+
   // Returns true iff we should stop building the current output
   // before processing "internal_key".
   bool ShouldStopBefore(const Slice& internal_key, uint64_t curr_file_size) {
@@ -194,6 +195,11 @@ struct CompactionJob::SubcompactionState {
     }
 
     return false;
+  }
+
+  void DebugPrint() {
+    printf("Start: %s", start->ToString().c_str());
+    printf("End: %s", end->ToString().c_str());
   }
 };
 
@@ -411,6 +417,13 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
+
+  for (const GuardMetaData& guard : c->output_guards()) {
+    // Ignore sentinels
+    if (!guard.isSentinel()) {
+      bounds.emplace_back(guard.guard_key().user_key());
+    }
+  }
 
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
@@ -730,10 +743,11 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
         sub_compact->compaction->CreateCompactionFilter();
     compaction_filter = compaction_filter_from_factory.get();
   }
+  
   MergeHelper merge(
       env_, cfd->user_comparator(), cfd->ioptions()->merge_operator,
       compaction_filter, db_options_.info_log.get(),
-      false /* internal key corruption is expected */,
+      false /* internal key corruption is expected*/,
       existing_snapshots_.empty() ? 0 : existing_snapshots_.back(),
       compact_->compaction->level(), db_options_.statistics.get(),
       shutting_down_);
@@ -786,11 +800,27 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   std::string compression_dict;
   compression_dict.reserve(cfd->ioptions()->compression_opts.max_dict_bytes);
 
-  while (status.ok() && !cfd->IsDropped() && c_iter->Valid()) {
+  auto guard_iter = compact_->compaction->output_guards().begin();
+  // Advance guard_iter so that it points to a valid guard for the first ikey
+  const ParsedInternalKey& initial_parsed_ikey = c_iter->ikey();
+  if (IsExtendedValueType(initial_parsed_ikey.type)) {
+    InternalKey ikey;
+    ikey.SetFrom(initial_parsed_ikey);
+    while (guard_iter != compact_->compaction->output_guards().end() && std::next(guard_iter) != compact_->compaction->output_guards().end()) {
+      const GuardMetaData& next_guard = *std::next(guard_iter);
+      if (cfd->internal_comparator().Compare(ikey, next_guard.guard_key()) < 0) {
+        break;
+      }
+      guard_iter++;
+    }
+  }
+
+  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() && guard_iter != compact_->compaction->output_guards().end()) {
     // Invariant: c_iter.status() is guaranteed to be OK if c_iter->Valid()
     // returns true.
     const Slice& key = c_iter->key();
     const Slice& value = c_iter->value();
+    //printf("Current key = %s\n", key.data());
 
     // If an end key (exclusive) is specified, check if the current key is
     // >= than it and exit if it is because the iterator is out of its range
@@ -869,9 +899,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       }
     }
 
-    // Close output file if it is big enough. Two possibilities determine it's
+    // Close output file if it is big enough. Three possibilities determine it's
     // time to close it: (1) the current key should be this file's last key, (2)
-    // the next key should not be in this file.
+    // the next key should not be in this file, (3) the next key goes in a different
+    // guard.
     //
     // TODO(aekmekji): determine if file should be closed earlier than this
     // during subcompactions (i.e. if output size, estimated by input size, is
@@ -887,7 +918,37 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       input_status = input->status();
       output_file_ended = true;
     }
+    const ParsedInternalKey& current_parsed_ikey = c_iter->ikey();
+    InternalKey current_ikey;
+    bool set_current_ikey = false;
+    if (IsExtendedValueType(current_parsed_ikey.type)) {
+      current_ikey.SetFrom(current_parsed_ikey);
+      set_current_ikey = true;
+    }
     c_iter->Next();
+    const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
+    if (IsExtendedValueType(next_parsed_ikey.type)) {
+      InternalKey next_ikey;
+      next_ikey.SetFrom(next_parsed_ikey);
+      //printf("Current ikey = %s, next ikey = %s, (<): %d\n", current_ikey.DebugString().c_str(), next_ikey.DebugString().c_str(), cfd->internal_comparator().Compare(next_ikey, current_ikey));
+      if (set_current_ikey) {
+        assert(cfd->internal_comparator().Compare(next_ikey, current_ikey) >= 0);
+      }
+      while (guard_iter != compact_->compaction->output_guards().end() && std::next(guard_iter) != compact_->compaction->output_guards().end()) {
+        const GuardMetaData& next_guard = *std::next(guard_iter);
+        const GuardMetaData& current_guard = *guard_iter;
+        if (current_guard.guard_key().size() > 0) {
+          assert(cfd->internal_comparator().Compare(next_ikey, current_guard.guard_key()) >= 0);
+          assert(cfd->internal_comparator().Compare(current_guard.guard_key(), next_guard.guard_key()) < 0);
+        }
+        if (cfd->internal_comparator().Compare(next_ikey, next_guard.guard_key()) < 0) {
+          break;
+        }
+        //printf("Current key %s does not go in current guard %s; next guard = %s\n", next_ikey.DebugString().c_str(), current_guard.guard_key().DebugString().c_str(), next_guard.guard_key().DebugString().c_str());
+        guard_iter++;
+        output_file_ended = true;
+      }
+    }
     if (!output_file_ended && c_iter->Valid() &&
         sub_compact->compaction->output_level() != 0 &&
         sub_compact->ShouldStopBefore(
@@ -1235,6 +1296,14 @@ Status CompactionJob::InstallCompactionResults(
       compaction->edit()->AddFile(compaction->output_level(), out.meta);
     }
   }
+
+  // Convert new guards to complete guards
+  for (const GuardMetaData& guard : compaction->output_guards()) {
+    if (!guard.isSentinel()) {
+      compaction->edit()->AddCompleteGuard(guard);
+    }
+  }
+
   return versions_->LogAndApply(compaction->column_family_data(),
                                 mutable_cf_options, compaction->edit(),
                                 db_mutex_, db_directory_);

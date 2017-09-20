@@ -133,6 +133,64 @@ struct FileMetaData {
   }
 };
 
+/*
+guard_key is the smallesst key served by the guard file. In each level,
+there can be only one guard starting with a given key, so (level, key)
+uniquely identifies a guard.
+*/
+class GuardMetaData {
+  /*
+    HyperLevelDB populates the files in a guard after the guard is deserialized
+    (i.e. the set of files is not ever serialized). The member variables marked
+    `mutable` are populated after the guard is read
+   */
+ private:
+  int level_;
+  InternalKey guard_key_;
+  mutable InternalKey smallest_;
+  mutable InternalKey largest_;
+  mutable std::vector<FileMetaData*> file_metas_;
+
+  void DebugPrint() {
+    printf("---------\n");
+    printf("\tSmallest: %s\n", smallest().DebugString().c_str());
+    printf("\tLargest: %s\n", largest().DebugString().c_str());
+    printf("\tNum FilesMetas: %d\n", (int)file_metas().size());
+    printf("---------\n");
+  }
+
+ public:
+
+  GuardMetaData(int level, InternalKey guard_key)
+    : level_(level), guard_key_(guard_key) {
+  }
+
+  GuardMetaData(int level)
+    : level_(level) {
+  }
+
+  GuardMetaData(const GuardMetaData& other)
+    : level_(other.level_), guard_key_(other.guard_key_),
+      smallest_(other.smallest_), largest_(other.largest_),
+      file_metas_(other.file_metas_) {}
+
+  int level() const { return level_; }
+  bool isSentinel() const { return this->guard_key().size() == 0; }
+  const InternalKey& guard_key() const { return guard_key_; }
+  const InternalKey& largest() const { return largest_; }
+  const InternalKey& smallest() const { return smallest_; }
+  const std::vector<FileMetaData*>& file_metas() const { return file_metas_; }
+
+  bool operator==(const GuardMetaData& other) const {
+    return other.level() == this->level() &&
+      other.guard_key_ == this->guard_key_;
+  }
+
+  bool operator!=(GuardMetaData& other) { return !(*this == other); }
+
+  friend class VersionStorageInfo;
+};
+
 // A compressed copy of file meta data that just contain minimum data needed
 // to server read operations, while still keeping the pointer to full metadata
 // of the file in case it is needed.
@@ -218,6 +276,20 @@ class VersionEdit {
     new_files_.emplace_back(level, std::move(f));
   }
 
+  void AddNewGuard(const GuardMetaData& g) {
+    if (std::find(new_guards_.begin(), new_guards_.end(), g) != new_guards_.end()) {
+      return;
+    }
+    new_guards_.emplace_back(g);
+  }
+
+  void AddCompleteGuard(const GuardMetaData& g) {
+    if (std::find(complete_guards_.begin(), complete_guards_.end(), g) != complete_guards_.end()) {
+      return;
+    }
+    complete_guards_.emplace_back(g);
+  }
+
   void AddFile(int level, const FileMetaData& f) {
     assert(f.smallest_seqno <= f.largest_seqno);
     new_files_.emplace_back(level, f);
@@ -272,6 +344,11 @@ class VersionEdit {
   std::string DebugString(bool hex_key = false) const;
   std::string DebugJSON(int edit_num, bool hex_key = false) const;
 
+  const std::vector<GuardMetaData>& GetNewGuards() const { return new_guards_; }
+  const std::vector<GuardMetaData>& GetCompleteGuards() const {
+    return complete_guards_;
+  }
+
  private:
   friend class VersionSet;
   friend class Version;
@@ -304,6 +381,9 @@ class VersionEdit {
   bool is_column_family_drop_;
   bool is_column_family_add_;
   std::string column_family_name_;
+
+  std::vector<GuardMetaData> new_guards_;
+  std::vector<GuardMetaData> complete_guards_;
 };
 
 }  // namespace rocksdb

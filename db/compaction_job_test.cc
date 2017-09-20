@@ -247,6 +247,8 @@ class CompactionJobTest : public testing::Test {
                           compaction_input_files, 1, 1024 * 1024,
                           10 * 1024 * 1024, 0, kNoCompression, {}, true);
     compaction.SetInputVersion(cfd->current());
+    compaction.DebugPrint(true);
+    ASSERT_TRUE(compaction.input_version()->CorrectVersionStructure());
 
     LogBuffer log_buffer(InfoLogLevel::INFO_LEVEL, db_options_.info_log.get());
     mutex_.Lock();
@@ -270,6 +272,8 @@ class CompactionJobTest : public testing::Test {
     mutex_.Lock();
     ASSERT_OK(compaction_job.Install(*cfd->GetLatestMutableCFOptions()));
     mutex_.Unlock();
+    ASSERT_TRUE(compaction.column_family_data()->current()->CorrectVersionStructure());
+    compaction.DebugPrint(false);
 
     if (expected_results.size() == 0) {
       ASSERT_GE(compaction_job_stats_.elapsed_micros, 0U);

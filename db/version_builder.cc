@@ -100,6 +100,8 @@ class VersionBuilder::Rep {
   bool has_invalid_levels_;
   FileComparator level_zero_cmp_;
   FileComparator level_nonzero_cmp_;
+  std::vector<GuardMetaData> new_guards_;
+  std::vector<GuardMetaData> complete_guards_;
 
  public:
   Rep(const EnvOptions& env_options, Logger* info_log, TableCache* table_cache,
@@ -308,12 +310,82 @@ class VersionBuilder::Rep {
         }
       }
     }
+
+    // Add guards
+    // NOTE: VersionEdit currently stores the complete set of guards, so
+    // clear new_guards and complete_guards first
+    const auto& new_guards_from_edit = edit->GetNewGuards();
+    const auto& complete_guards_from_edit = edit->GetCompleteGuards();
+    new_guards_.clear();
+    complete_guards_.clear();
+    for (const auto& new_guard : new_guards_from_edit) {
+      assert(new_guard.level() >= 1);
+      new_guards_.emplace_back(new_guard);
+    }
+    for (const auto& complete_guard : complete_guards_from_edit) {
+      assert(complete_guard.level() >= 1);
+      complete_guards_.emplace_back(complete_guard);
+    }
   }
 
   // Save the current state in *v.
   void SaveTo(VersionStorageInfo* vstorage) {
     CheckConsistency(base_vstorage_);
     CheckConsistency(vstorage);
+
+    // For convenience
+    std::function<bool(const GuardMetaData&, const GuardMetaData&)> equals =
+        [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
+      return vstorage->internal_comparator_->Compare(first.guard_key(),
+                                                     second.guard_key()) == 0;
+    };
+
+    // Make copy
+    auto complete_guards = complete_guards_;
+    auto new_guards = new_guards_;
+
+    // Remove guards from complete_guards and new_guards if they already exist
+    // in vstorage
+
+    for (const GuardMetaData& new_guard : new_guards) {
+      int level = new_guard.level();
+      const auto& new_guards_result = vstorage->new_guards_.find(level);
+      if (new_guards_result == vstorage->new_guards_.end()) {
+        vstorage->AddNewGuard(new_guard);
+        break;
+      }
+      const auto& existing_new_guards = new_guards_result->second;
+      bool exists =
+          existing_new_guards.end() ==
+          std::find_if(existing_new_guards.begin(), existing_new_guards.end(),
+                       [&](const GuardMetaData& existing_new_guard) -> bool {
+                         return equals(new_guard, existing_new_guard);
+                       });
+      if (!exists) {
+        vstorage->AddNewGuard(new_guard);
+      }
+    }
+
+    for (const GuardMetaData& complete_guard : complete_guards) {
+      int level = complete_guard.level();
+      const auto& complete_guards_result =
+          vstorage->complete_guards_.find(level);
+      if (complete_guards_result == vstorage->complete_guards_.end()) {
+        vstorage->AddCompleteGuard(complete_guard);
+        break;
+      }
+      const auto& existing_complete_guards = complete_guards_result->second;
+      bool exists =
+          existing_complete_guards.end() ==
+          std::find_if(
+              existing_complete_guards.begin(), existing_complete_guards.end(),
+              [&](const GuardMetaData& existing_complete_guard) -> bool {
+                return equals(complete_guard, existing_complete_guard);
+              });
+      if (!exists) {
+        vstorage->AddCompleteGuard(complete_guard);
+      }
+    }
 
     for (int level = 0; level < num_levels_; level++) {
       const auto& cmp = (level == 0) ? level_zero_cmp_ : level_nonzero_cmp_;

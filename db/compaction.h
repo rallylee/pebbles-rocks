@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
+#include "db/guard_set.h"
 #include "db/version_set.h"
 #include "options/cf_options.h"
 #include "util/arena.h"
@@ -56,6 +57,8 @@ class Compaction {
   int level(size_t compaction_input_level = 0) const {
     return inputs_[compaction_input_level].level;
   }
+
+  void DebugPrint(bool before);
 
   int start_level() const { return start_level_; }
 
@@ -146,6 +149,8 @@ class Compaction {
   // in bytes.  The caller is responsible for the memory management of
   // "output".
   void Summary(char* output, int len);
+
+  bool FileTriviallyMovable(const FileMetaData* const file) const;
 
   // Return the score that was used to pick this compaction run.
   double score() const { return score_; }
@@ -243,6 +248,8 @@ class Compaction {
 
   uint64_t MaxInputFileCreationTime() const;
 
+  const GuardSet& output_guards() const { return output_guards_; }
+
  private:
   // mark (or clear) all files that are being compacted
   void MarkFilesBeingCompacted(bool mark_as_compacted);
@@ -317,6 +324,8 @@ class Compaction {
 
   // Reason for compaction
   CompactionReason compaction_reason_;
+
+  GuardSet output_guards_;
 };
 
 // Utility function
