@@ -20,6 +20,7 @@
 #pragma once
 #include <atomic>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -33,6 +34,7 @@
 #include "db/compaction_picker.h"
 #include "db/dbformat.h"
 #include "db/file_indexer.h"
+#include "db/guard_set.h"
 #include "db/log_reader.h"
 #include "db/range_del_aggregator.h"
 #include "db/read_callback.h"
@@ -149,6 +151,9 @@ class VersionStorageInfo {
 
   // Generate level_files_brief_ from files_
   void GenerateLevelFilesBrief();
+
+  // Populate guards from files_
+  void PopulateGuards();
   // Sort all files for this version based on their file size and
   // record results in files_by_compaction_pri_. The largest files are listed
   // first.
@@ -396,6 +401,8 @@ class VersionStorageInfo {
   bool RangeMightExistAfterSortedRun(const Slice& smallest_key,
                                      const Slice& largest_key, int last_level,
                                      int last_l0_idx);
+  
+  void AddNewGuard(const GuardMetaData& g);
 
  private:
   const InternalKeyComparator* internal_comparator_;
@@ -507,9 +514,40 @@ class VersionStorageInfo {
 
   friend class Version;
   friend class VersionSet;
+  friend class VersionBuilder;
   // No copying allowed
   VersionStorageInfo(const VersionStorageInfo&) = delete;
   void operator=(const VersionStorageInfo&) = delete;
+
+  GuardSetComparator guard_set_comparator_;
+  // List of guards for each level
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
+      new_guards_;
+
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
+      complete_guards_;
+
+  void AddCompleteGuard(const GuardMetaData& g);
+
+ public:
+
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
+  new_guards() {
+    return new_guards_;
+  }
+
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
+  complete_guards() {
+    return complete_guards_;
+  }
+
+  std::unordered_map<int, GuardMetaData> sentinels_;
+
+  GuardSet GuardsAtLevel(int level);
+  GuardSet AllGuardsAtLevel(int level);
+  const GuardSetComparator& guard_set_comparator() const {
+    return guard_set_comparator_;
+  }
 };
 
 class Version {
@@ -562,6 +600,11 @@ class Version {
   // Decrease reference count. Delete the object if no reference left
   // and return true. Otherwise, return false.
   bool Unref();
+
+  bool CorrectVersionStructure();
+  bool CorrectGuardStructure();
+  bool CorrectLevelStructure(int level);
+  bool CorrectGuardMetaData(const GuardMetaData& g);
 
   // Add all files listed in the current version to *live.
   void AddLiveFiles(std::vector<FileDescriptor>* live);
@@ -616,6 +659,34 @@ class Version {
   VersionSet* version_set() { return vset_; }
 
   void GetColumnFamilyMetaData(ColumnFamilyMetaData* cf_meta);
+
+  int TotalGuardsAtLevel(int level) {
+    int total = 0;
+    const auto& new_guards_result = storage_info()->new_guards().find(level);
+    const auto& complete_guards_result =
+        storage_info()->complete_guards().find(level);
+    if (new_guards_result != storage_info()->new_guards().end()) {
+      total += new_guards_result->second.size();
+    }
+    if (complete_guards_result != storage_info()->complete_guards().end()) {
+      total += complete_guards_result->second.size();
+    }
+    if (storage_info()->sentinels_.find(level) !=
+        storage_info()->sentinels_.end()) {
+      total += 1;
+    }
+    return total;
+  }
+
+  int TotalGuards() {
+    int total = 0;
+    for (int i = 0; i < cfd()->NumberLevels(); i++) {
+      total += TotalGuardsAtLevel(i);
+    }
+    return total;
+  }
+
+  void AddGuard(InternalKey ikey, int level);
 
  private:
   Env* env_;

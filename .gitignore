@@ -72,3 +72,9 @@ tp2/
 fbcode/
 fbcode
 buckifier/*.pyc
+cmake-build-debug/
+lz4*
+zstd*
+bzip2*
+snappy*
+zlib*

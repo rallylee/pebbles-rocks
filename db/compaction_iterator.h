@@ -192,7 +192,7 @@ class CompactionIterator {
   // compaction rules.  This is used for outputting a put after a single delete.
   bool clear_and_output_next_key_ = false;
 
-  MergeOutputIterator merge_out_iter_;
+  MergeOutputIterator merge_out_iter_ = (MergeOutputIterator) NULL;
   // PinnedIteratorsManager used to pin input_ Iterator blocks while reading
   // merge operands and then releasing them after consuming them.
   PinnedIteratorsManager pinned_iters_mgr_;

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "db/column_family.h"
+#include "db/guard_set.h"
 #include "rocksdb/compaction_filter.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
@@ -158,7 +159,8 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       is_full_compaction_(IsFullCompaction(vstorage, inputs_)),
       is_manual_compaction_(_manual_compaction),
       is_trivial_move_(false),
-      compaction_reason_(_compaction_reason) {
+      compaction_reason_(_compaction_reason),
+      output_guards_(vstorage->AllGuardsAtLevel(output_level_)) {
   MarkFilesBeingCompacted(true);
   if (is_manual_compaction_) {
     compaction_reason_ = CompactionReason::kManualCompaction;
@@ -191,6 +193,25 @@ Compaction::~Compaction() {
       delete cfd_;
     }
   }
+}
+
+void Compaction::DebugPrint(bool before) {
+  printf("    PRINTING COMPACTION INFO\n");
+  printf("Compaction Level: %d\n", level());
+  /*printf("Input files: %d\n", (int) num_input_files(level()));
+  for (size_t i = 0; i < num_input_files(level()); i++) {
+    input(level(), i)->DebugPrint();
+  }
+  printf("\n");*/
+  printf("Should form subcompactions: %d\n", (int) ShouldFormSubcompactions());
+  printf("Version info:\n");
+  if(before) {
+    printf("%s", input_version()->DebugString().c_str());
+  }
+  else {
+    printf("%s", cfd_->current()->DebugString().c_str());
+  }
+  printf("----------------------------\n\n");
 }
 
 bool Compaction::InputCompressionMatchesOutput() const {
@@ -243,6 +264,9 @@ bool Compaction::IsTrivialMove() const {
   // assert inputs_.size() == 1
 
   for (const auto& file : inputs_.front().files) {
+    if (!FileTriviallyMovable(file)) {
+      return false;
+    }
     std::vector<FileMetaData*> file_grand_parents;
     if (output_level_ + 1 >= number_levels_) {
       continue;
@@ -256,6 +280,32 @@ bool Compaction::IsTrivialMove() const {
     }
   }
 
+  return true;
+}
+
+bool Compaction::FileTriviallyMovable(const FileMetaData* const file) const {
+  GuardMetaData fake_guard(1, file->smallest);
+  // printf("-- tm file [%s]...[%s]\n", file->smallest.DebugString().c_str(), file->largest.DebugString().c_str());
+  auto guard_iter = std::upper_bound(output_guards_.begin(), output_guards_.end(), fake_guard, input_vstorage_->guard_set_comparator());
+  if (guard_iter != output_guards_.end()) {
+    const GuardMetaData& guard = *guard_iter;
+    --guard_iter;
+    const GuardMetaData& prev_guard = *guard_iter;
+    // printf("-- tm found guard [%s]...[%s]\n", prev_guard.guard_key().DebugString().c_str(), guard.guard_key().DebugString().c_str());
+    if (!prev_guard.isSentinel()) {
+      assert(input_vstorage_->InternalComparator()->Compare(file->smallest, prev_guard.guard_key()) >= 0);
+    }
+    if (input_vstorage_->InternalComparator()->Compare(file->largest, guard.guard_key()) >= 0) {
+      return false;
+    }
+  } else {
+    assert(output_guards_.begin() != output_guards_.end()); // guards should never be empty
+    --guard_iter;
+    const GuardMetaData& prev_guard = *guard_iter;
+    if (!prev_guard.isSentinel()) {
+      assert(input_vstorage_->InternalComparator()->Compare(file->smallest, prev_guard.guard_key()) >= 0);
+    }
+  }
   return true;
 }
 

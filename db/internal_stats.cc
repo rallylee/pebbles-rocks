@@ -191,6 +191,7 @@ std::pair<Slice, Slice> GetPropertyNameAndArg(const Slice& property) {
 static const std::string rocksdb_prefix = "rocksdb.";
 
 static const std::string num_files_at_level_prefix = "num-files-at-level";
+static const std::string num_guards_at_level_prefix = "num-guards-at-level";
 static const std::string compression_ratio_at_level_prefix =
     "compression-ratio-at-level";
 static const std::string allstats = "stats";
@@ -248,6 +249,8 @@ static const std::string estimate_oldest_key_time = "estimate-oldest-key-time";
 
 const std::string DB::Properties::kNumFilesAtLevelPrefix =
                       rocksdb_prefix + num_files_at_level_prefix;
+const std::string DB::Properties::kNumGuardsAtLevelPrefix =
+        rocksdb_prefix + num_guards_at_level_prefix;
 const std::string DB::Properties::kCompressionRatioAtLevelPrefix =
                       rocksdb_prefix + compression_ratio_at_level_prefix;
 const std::string DB::Properties::kStats = rocksdb_prefix + allstats;
@@ -323,6 +326,8 @@ const std::string DB::Properties::kEstimateOldestKeyTime =
 
 const std::unordered_map<std::string, DBPropertyInfo>
     InternalStats::ppt_name_to_info = {
+        {DB::Properties::kNumGuardsAtLevelPrefix,
+         {false, &InternalStats::HandleNumGuardsAtLevel, nullptr, nullptr}},
         {DB::Properties::kNumFilesAtLevelPrefix,
          {false, &InternalStats::HandleNumFilesAtLevel, nullptr, nullptr}},
         {DB::Properties::kCompressionRatioAtLevelPrefix,
@@ -476,6 +481,20 @@ bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
     char buf[100];
     snprintf(buf, sizeof(buf), "%d",
              vstorage->NumLevelFiles(static_cast<int>(level)));
+    *value = buf;
+    return true;
+  }
+}
+
+bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
+  uint64_t level;
+  bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
+  if (!ok || static_cast<int>(level) >= number_levels_) {
+    return false;
+  } else {
+    char buf[100];
+    snprintf(buf, sizeof(buf), "%d",
+             cfd_->current()->TotalGuardsAtLevel(level));
     *value = buf;
     return true;
   }

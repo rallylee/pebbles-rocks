@@ -189,6 +189,10 @@ class InternalKey {
         &rep_, ParsedInternalKey(_user_key, 0, static_cast<ValueType>(0)));
   }
 
+  bool operator==(const InternalKey& other) const {
+    return other.rep_ == rep_;
+  }
+
   // sets the internal key to be smaller or equal to all internal keys with this
   // user key
   void SetMinPossibleForUserKey(const Slice& _user_key) {
@@ -208,7 +212,7 @@ class InternalKey {
   }
 
   Slice user_key() const { return ExtractUserKey(rep_); }
-  size_t size() { return rep_.size(); }
+  size_t size() const { return rep_.size(); }
 
   void Set(const Slice& _user_key, SequenceNumber s, ValueType t) {
     SetFrom(ParsedInternalKey(_user_key, s, t));

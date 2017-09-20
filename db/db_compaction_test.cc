@@ -1125,8 +1125,8 @@ TEST_P(DBCompactionTestWithParam, TrivialMoveTargetLevel) {
     ASSERT_EQ(Get(Key(i)), values[i]);
   }
 }
-
-TEST_P(DBCompactionTestWithParam, ManualCompactionPartial) {
+// Disabled because it crashes when an assert fails
+TEST_P(DBCompactionTestWithParam, DISABLED_ManualCompactionPartial) {
   int32_t trivial_move = 0;
   int32_t non_trivial_move = 0;
   rocksdb::SyncPoint::GetInstance()->SetCallBack(

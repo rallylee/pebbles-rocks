@@ -39,6 +39,8 @@ enum Tag {
   kColumnFamilyAdd = 201,
   kColumnFamilyDrop = 202,
   kMaxColumnFamily = 203,
+  kNewGuard = 204,
+  kCompleteGuard = 205,
 };
 
 enum CustomTag {
@@ -185,6 +187,21 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
   if (is_column_family_drop_) {
     PutVarint32(dst, kColumnFamilyDrop);
   }
+
+  // Encode complete guards
+  for (const GuardMetaData& complete_guard : complete_guards_) {
+    PutVarint32(dst, kCompleteGuard);
+    PutVarint32(dst, complete_guard.level());
+    PutLengthPrefixedSlice(dst, complete_guard.guard_key().Encode());
+  }
+
+  // Encode new guards
+  for (const GuardMetaData& new_guard : new_guards_) {
+    PutVarint32(dst, kNewGuard);
+    PutVarint32(dst, new_guard.level());
+    PutLengthPrefixedSlice(dst, new_guard.guard_key().Encode());
+  }
+
   return true;
 }
 
@@ -438,6 +455,26 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       case kColumnFamilyDrop:
         is_column_family_drop_ = true;
         break;
+
+      case kCompleteGuard: {
+        if (GetLevel(&input, &level, &msg) &&
+            GetInternalKey(&input, &key)) {
+          complete_guards_.emplace_back(level, key);
+        } else {
+          msg = "complete-guard entry";
+        }
+        break;
+      }
+
+      case kNewGuard: {
+        if (GetLevel(&input, &level, &msg) &&
+            GetInternalKey(&input, &key)) {
+          new_guards_.emplace_back(level, key);
+        } else {
+          msg = "new-guard entry";
+        }
+        break;
+      }
 
       default:
         msg = "unknown tag";
