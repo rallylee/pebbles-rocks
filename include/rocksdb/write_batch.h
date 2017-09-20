@@ -179,7 +179,7 @@ class WriteBatch : public WriteBatchBase {
     // All handler functions in this class provide default implementations so
     // we won't break existing clients of Handler on a source code level when
     // adding a new member function.
-
+    virtual void HandleGuard(const Slice& key, unsigned level) {}
     // default implementation will just call Put without column family for
     // backwards compatibility. If the column family is not default,
     // the function is noop

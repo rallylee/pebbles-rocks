@@ -366,6 +366,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
 
   input.remove_prefix(WriteBatchInternal::kHeader);
   Slice key, value, blob, xid;
+  uint32_t level;
   int found = 0;
   Status s;
   while (s.ok() && !input.empty() && handler->Continue()) {
@@ -438,6 +439,14 @@ Status WriteBatch::Iterate(Handler* handler) const {
         handler->MarkRollback(xid);
         break;
       case kTypeNoop:
+        break;
+      case kTypeGuard:
+        if (GetLengthPrefixedSlice(&input, &key) &&
+            GetVarint32(&input, &level)) {
+          handler->HandleGuard(key, level);
+        } else {
+          return Status::Corruption("bad WriteBatch Guard");
+        }
         break;
       default:
         return Status::Corruption("unknown WriteBatch tag");

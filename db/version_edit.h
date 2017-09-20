@@ -148,8 +148,8 @@ struct GuardMetaData {
   std::vector<uint64_t> files;
   std::vector<FileMetaData*> file_metas;
 
-GuardMetaData() : refs(0), level(-1), guard_key(), smallest(), largest(),
-number_segments(0) { files.clear(); }
+GuardMetaData() : refs(0), level(-1), number_segments(0), guard_key(), smallest(), largest()
+ { files.clear(); }
 };
 
 // A compressed copy of file meta data that just contain minimum data needed
