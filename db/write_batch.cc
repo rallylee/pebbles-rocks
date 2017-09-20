@@ -483,6 +483,7 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
     b->rep_.push_back(static_cast<char>(kTypeColumnFamilyValue));
     PutVarint32(&b->rep_, column_family_id);
   }
+
   PutLengthPrefixedSlice(&b->rep_, key);
   PutLengthPrefixedSlice(&b->rep_, value);
   b->content_flags_.store(
@@ -831,7 +832,7 @@ class MemTableInserter : public WriteBatch::Handler {
   // cause memory allocations though unused.
   // Make creation optional but do not incur
   // unique_ptr additional allocation
-  using 
+  using
   MemPostInfoMap = std::map<MemTable*, MemTablePostProcessInfo>;
   using
   PostMapType = std::aligned_storage<sizeof(MemPostInfoMap)>::type;
@@ -933,6 +934,24 @@ public:
     }
 
     return true;
+  }
+
+  /* Changing memtable inserter so that it inserts guards into a version in
+   * addition to adding keys to the memtable.
+   */
+  virtual void HandleGuard(const Slice& key, unsigned level) {
+    auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+    auto* cfd = reinterpret_cast< ColumnFamiyHandleImpl* >(cf_handle)->cfd();
+    if (!version_) return;
+    assert(level < cfd->ioptions()->num_levels);
+    GuardMetaData* g = new GuardMetaData();
+    InternalKey ikey(key, sequence_, kTypeValue);
+    g->guard_key = ikey;
+    g->level = level;
+    g->number_segments = 0;
+    g->refs = 1;
+    version_->AddToCompleteGuards(g, level);
+    sequence_++;
   }
 
   virtual Status PutCF(uint32_t column_family_id, const Slice& key,
