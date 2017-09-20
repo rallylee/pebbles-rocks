@@ -941,8 +941,8 @@ public:
    */
   virtual void HandleGuard(const Slice& key, unsigned level) {
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-    auto* cfd = reinterpret_cast< ColumnFamiyHandleImpl* >(cf_handle)->cfd();
-    if (!version_) return;
+    auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+    //if (!version_) return;
     assert(level < cfd->ioptions()->num_levels);
     GuardMetaData* g = new GuardMetaData();
     InternalKey ikey(key, sequence_, kTypeValue);
@@ -950,8 +950,8 @@ public:
     g->level = level;
     g->number_segments = 0;
     g->refs = 1;
-    version_->AddToCompleteGuards(g, level);
-    sequence_++;
+    //version_->AddToCompleteGuards(g, level);
+    //sequence_++;
   }
 
   virtual Status PutCF(uint32_t column_family_id, const Slice& key,

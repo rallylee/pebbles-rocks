@@ -133,6 +133,25 @@ struct FileMetaData {
   }
 };
 
+/*
+guard_key is the smallesst key served by the guard file. In each level,
+there can be only one guard starting with a given key, so (level, key)
+uniquely identifies a guard.
+*/
+struct GuardMetaData {
+  int refs;
+  int level;
+  uint64_t number_segments;
+  InternalKey guard_key;
+  InternalKey smallest;
+  InternalKey largest;
+  std::vector<uint64_t> files;
+  std::vector<FileMetaData*> file_metas;
+
+GuardMetaData() : refs(0), level(-1), guard_key(), smallest(), largest(),
+number_segments(0) { files.clear(); }
+};
+
 // A compressed copy of file meta data that just contain minimum data needed
 // to server read operations, while still keeping the pointer to full metadata
 // of the file in case it is needed.
