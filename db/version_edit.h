@@ -22,6 +22,8 @@ namespace rocksdb {
 
 class VersionSet;
 
+struct GuardMetaData;
+
 const uint64_t kFileNumberMask = 0x3FFFFFFFFFFFFFFF;
 
 extern uint64_t PackFileNumberAndPathId(uint64_t number, uint64_t path_id);
@@ -79,8 +81,11 @@ struct FileMetaData {
   InternalKey largest;             // Largest internal key served by table
   SequenceNumber smallest_seqno;   // The smallest seqno in this file
   SequenceNumber largest_seqno;    // The largest seqno in this file
-
-  // Needs to be disposed when refs becomes 0.
+  GuardMetaData* guard;
+  int allowed_seeks;          // Seeks allowed until compaction
+  uint64_t number;
+  uint64_t file_size;         // File size in bytes
+// Needs to be disposed when refs becomes 0.
   Cache::Handle* table_reader_handle;
 
   FileSampledStats stats;
@@ -242,12 +247,70 @@ class VersionEdit {
     new_files_.emplace_back(level, f);
   }
 
+  void AddSentinelFile(int level, int allowed_seeks, uint64_t file_size, GuardMetaData* g, InternalKey largest, InternalKey smallest, uint64_t number, int refs) {
+    FileMetaData meta;
+    meta.allowed_seeks = allowed_seeks;
+    meta.file_size = file_size;
+    meta.guard = g;
+    meta.largest = largest;
+    meta.smallest = smallest;
+    meta.number = number;
+    meta.refs = refs;
+    sentinel_files_[level].push_back(meta);
+  }
+
+  void AddSentinelFileNo(int level, uint64_t number) {
+    sentinel_file_nos_[level].push_back(number);
+  }
+
+  void AddGuard(int level, const InternalKey& guard_key) {
+    GuardMetaData g;
+    g.guard_key = guard_key;
+    g.level = level;
+    g.number_segments = 0;
+    new_guards_[level].push_back(g);
+  }
+
+  void AddCompleteGuard(int level, const InternalKey& guard_key) {
+    GuardMetaData g;
+    g.guard_key = guard_key;
+    g.level = level;
+    g.number_segments = 0;
+    new_complete_guards_[level].push_back(g);
+  }
+
+  void AddGuardFromExisting(int level, GuardMetaData* g) {
+    GuardMetaData new_g(*g);
+    new_guards_[level].push_back(new_g);
+  }
+
+  void AddCompleteGuardFromExisting(int level, GuardMetaData* g) {
+    GuardMetaData new_g(*g);
+    new_complete_guards_[level].push_back(new_g);
+  }
+
+  /* A version of AddGuard that contains files. */
+  void AddGuardWithFiles(int level, uint64_t number_segments,
+                         const InternalKey& guard_key,
+                         const InternalKey& smallest,
+                         const InternalKey& largest,
+                         const std::vector<uint64_t> files) {
+    GuardMetaData g;
+    g.guard_key = guard_key;
+    g.level = level;
+    g.smallest = smallest;
+    g.largest = largest;
+    g.number_segments = number_segments;
+    g.files.insert(g.files.end(), files.begin(), files.end());
+    new_guards_[level].push_back(g);
+  }
+
   // Delete the specified "file" from the specified "level".
   void DeleteFile(int level, uint64_t file) {
     deleted_files_.insert({level, file});
   }
 
-  // Number of edits
+    // Number of edits
   size_t NumEntries() { return new_files_.size() + deleted_files_.size(); }
 
   bool IsColumnFamilyManipulation() {
@@ -323,6 +386,10 @@ class VersionEdit {
   bool is_column_family_drop_;
   bool is_column_family_add_;
   std::string column_family_name_;
+  std::vector<std::vector<FileMetaData>> sentinel_files_;
+  std::vector<std::vector<uint64_t>> sentinel_file_nos_;
+  std::vector<std::vector<GuardMetaData>> new_guards_;
+  std::vector<std::vector<GuardMetaData>> new_complete_guards_;
 };
 
 }  // namespace rocksdb

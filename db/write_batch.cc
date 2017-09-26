@@ -952,7 +952,7 @@ public:
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
     auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
     //if (!version_) return;
-    assert(level < cfd->ioptions()->num_levels);
+    assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
     GuardMetaData* g = new GuardMetaData();
     InternalKey ikey(key, sequence_, kTypeValue);
     g->guard_key = ikey;
