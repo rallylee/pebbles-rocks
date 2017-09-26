@@ -271,22 +271,9 @@ class VersionEdit {
     new_guards_[level].push_back(g);
   }
 
-  void AddCompleteGuard(int level, const InternalKey& guard_key) {
-    GuardMetaData g;
-    g.guard_key = guard_key;
-    g.level = level;
-    g.number_segments = 0;
-    new_complete_guards_[level].push_back(g);
-  }
-
   void AddGuardFromExisting(int level, GuardMetaData* g) {
     GuardMetaData new_g(*g);
     new_guards_[level].push_back(new_g);
-  }
-
-  void AddCompleteGuardFromExisting(int level, GuardMetaData* g) {
-    GuardMetaData new_g(*g);
-    new_complete_guards_[level].push_back(new_g);
   }
 
   /* A version of AddGuard that contains files. */
@@ -389,7 +376,6 @@ class VersionEdit {
   std::vector<std::vector<FileMetaData>> sentinel_files_;
   std::vector<std::vector<uint64_t>> sentinel_file_nos_;
   std::vector<std::vector<GuardMetaData>> new_guards_;
-  std::vector<std::vector<GuardMetaData>> new_complete_guards_;
 };
 
 }  // namespace rocksdb

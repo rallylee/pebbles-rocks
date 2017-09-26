@@ -29,18 +29,15 @@ namespace rocksdb {
       kDeletedFile = 6,
       kNewFile = 7,
       // 8 was used for large value refs
-              kPrevLogNumber = 9,
+      kPrevLogNumber = 9,
 
-      kDeletedGuard = 10,
-      kNewGuard = 11,
-      kFileInsideGuard = 12,
-      kNewSentinelFile = 13,
-      kDeletedSentinelFile = 14,
-      kNewCompleteGuard = 15,
-      kNewSentinelFileNo = 16,
+      kNewGuard = 10,
+      kFileInsideGuard = 11,
+      kNewSentinelFile = 12,
+      kNewSentinelFileNo = 13,
 
       // these are new formats divergent from open source leveldb
-              kNewFile2 = 100,
+      kNewFile2 = 100,
       kNewFile3 = 102,
       kNewFile4 = 103,      // 4th (the latest) format version of adding files
       kColumnFamily = 200,  // specify column family for version edit
@@ -205,22 +202,6 @@ namespace rocksdb {
       }
     }
 
-    // Encode complete guards
-    for (size_t k = 0; k < new_complete_guards_.size(); k++) {
-      for (size_t i = 0; i < new_complete_guards_[k].size(); i++) {
-        const GuardMetaData& g = new_complete_guards_[k][i];
-        PutVarint32(dst, kNewCompleteGuard);
-        PutVarint32(dst, g.level);  // level
-        PutVarint64(dst, 0 /* g.number_segments */);
-        PutLengthPrefixedSlice(dst, g.guard_key.Encode());
-        /* smallest and largest only make sense if it has files. */
-/*      if (g.number_segments > 0) {
-      PutLengthPrefixedSlice(dst, g.smallest.Encode());
-      PutLengthPrefixedSlice(dst, g.largest.Encode());
-    }*/
-      }
-    }
-
     // Encoding sentinel files -- NOT REQUIRED because it will be automatically constructed in LogAndApply with files_ information
 /*  for (size_t k = 0; k < cfd->ioptions()->num_levels; k++) {
   for (size_t i = 0; i < sentinel_file_nos_[k].size(); i++) {
@@ -348,7 +329,7 @@ namespace rocksdb {
 
     // Temporary storage for parsing
     int level;
-    uint64_t number, fnumber;
+    uint64_t fnumber;
     FileMetaData f;
     Slice str;
     InternalKey key;
@@ -486,23 +467,6 @@ namespace rocksdb {
             new_guards_[g.level].push_back(g);
           } else {
             msg = "new-guard entry";
-          }
-              break;
-
-        case kNewCompleteGuard:
-          if (GetLevel(&input, &g.level, &msg)
-              && GetVarint64(&input, &g.number_segments)
-              && GetInternalKey(&input, &g.guard_key)) {
-            /* Gather all the files inside the guard. */
-            g.files.clear();
-            // For complete guards, we do not decode the individual file details
-            if (g.number_segments > 0) {
-              assert(GetInternalKey(&input, &g.smallest)
-                     && GetInternalKey(&input, &g.largest));
-            }
-            new_complete_guards_[g.level].push_back(g);
-          } else {
-            msg = "new-complete-guard entry";
           }
               break;
 
@@ -645,28 +609,6 @@ namespace rocksdb {
         }
       }
     r.append("\n");
-
-    for (size_t k = 0; k < new_complete_guards_.size(); k++)
-      for (size_t i = 0; i < new_complete_guards_[k].size(); i++) {
-        const GuardMetaData& g = new_complete_guards_[k][i];
-        r.append("\n  AddCompleteGuard: ");
-        AppendNumberTo(&r, g.level);
-        r.append(" ");
-        AppendNumberTo(&r, g.number_segments);
-        r.append(" ");
-        r.append(g.guard_key.DebugString());
-        r.append(" ");
-        r.append(g.smallest.DebugString());
-        r.append(" .. ");
-        r.append(g.largest.DebugString());
-        r.append(" Files: ");
-        if (g.number_segments > 0) {
-          for (size_t j = 0; j < g.files.size(); j++) {
-            AppendNumberTo(&r, g.files[j]);
-            r.append(" ");
-          }
-        }
-      }
 
     for (size_t i = 0; i < new_files_.size(); i++) {
       const FileMetaData& f = new_files_[i].second;
