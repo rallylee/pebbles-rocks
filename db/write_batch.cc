@@ -51,6 +51,10 @@
 #include "util/coding.h"
 #include "util/string_util.h"
 
+#include "db/murmurhash3.h"
+#include "db/version_edit.h"
+#include "db/version_set.h"
+
 namespace rocksdb {
 
 // anon namespace for file-local types
@@ -948,20 +952,77 @@ public:
   /* Changing memtable inserter so that it inserts guards into a version in
    * addition to adding keys to the memtable.
    */
-  virtual void HandleGuard(const Slice& key, unsigned level) {
-    auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-    auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
-    //if (!version_) return;
-    assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
-    GuardMetaData* g = new GuardMetaData();
-    InternalKey ikey(key, sequence_, kTypeValue);
-    g->guard_key = ikey;
-    g->level = level;
-    g->number_segments = 0;
-    g->refs = 1;
-    //version_->AddToCompleteGuards(g, level);
-    //sequence_++;
-  }
+  class GuardInserter : public WriteBatch::Handler {
+      public:
+          GuardInserter() : sequence_(), bit_mask(0), cf_mems_() {
+            new_batch = NULL;
+            auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+            auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+            for (int i = 0; i < cfd->ioptions()->num_levels; i++)
+              num_guards[i] = 0;
+          }
+          WriteBatch* new_batch;
+      SequenceNumber sequence_;
+      virtual void Put(const Slice& key, const Slice& value) {
+        unsigned num_bits = top_level_bits;
+        auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+        auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+        for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
+          if (IsKey(num_bits, key)) {
+            for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
+//              new_batch->PutGuard(key, j);
+              num_guards[j]++;
+            }
+            break;
+          }
+          // Check next level
+          num_bits -= bit_decrement;
+        }
+      }
+      virtual bool IsKey(unsigned num_bits, const Slice& key) {
+        void* input = (void*) key.data();
+        const unsigned int murmur_seed = 42;
+        unsigned int hash_result;
+        size_t size = key.size();
+        MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
+
+        // Go through each level, starting from the top and checking if it
+        // is a guard on that level.
+        set_mask(num_bits);
+        if ((hash_result & bit_mask) == bit_mask) {
+          return true;
+        }
+      }
+      virtual void HandleGuard(const Slice& key, unsigned level) {
+        //if (!version_) return;
+        auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+        auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+        assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
+        GuardMetaData* g = new GuardMetaData();
+        InternalKey ikey(key, sequence_, kTypeValue);
+        g->guard_key = ikey;
+        g->level = level;
+        g->number_segments = 0;
+        g->refs = 1;
+        //version_->AddToCompleteGuards(g, level);
+        //sequence_++;
+      }
+      void set_mask(unsigned num_bits) {
+        assert(num_bits > 0 && num_bits < 32);
+        bit_mask = (1 << num_bits) - 1;
+      }
+      private:
+        unsigned bit_mask;
+        const static unsigned top_level_bits = 27;
+        const static int bit_decrement = 2;
+        ColumnFamilyMemTables* const cf_mems_;
+
+        std::vector<int> num_guards;
+
+      GuardInserter(const GuardInserter&);
+      GuardInserter& operator = (const GuardInserter&);
+  };
+
 
   virtual Status PutCF(uint32_t column_family_id, const Slice& key,
                        const Slice& value) override {
