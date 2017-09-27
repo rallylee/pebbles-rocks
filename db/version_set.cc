@@ -3410,6 +3410,13 @@ Status VersionSet::WriteSnapshot(log::Writer* log) {
                        f->marked_for_compaction);
         }
       }
+
+      // Save guards
+      for (int level = 0; level < cfd->NumberLevels(); level++) {
+        for (const auto& guard_metadata : cfd->current()->storage_info()->guards_[level]) {
+          // TODO(souvik1997): edit.AddGuardFromExisting(level, &guard_metadata);
+        }
+      }
       edit.SetLogNumber(cfd->GetLogNumber());
       std::string record;
       if (!edit.EncodeTo(&record)) {

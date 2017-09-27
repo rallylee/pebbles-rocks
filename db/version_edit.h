@@ -341,6 +341,10 @@ class VersionEdit {
   std::string DebugString(bool hex_key = false) const;
   std::string DebugJSON(int edit_num, bool hex_key = false) const;
 
+  const std::vector<std::vector<GuardMetaData>>& GetNewGuards() {
+    return new_guards_;
+  }
+
  private:
   friend class VersionSet;
   friend class Version;

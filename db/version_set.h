@@ -442,8 +442,12 @@ class VersionStorageInfo {
   // is compiled in release mode
   bool force_consistency_checks_;
 
+  // List of guards for each level
+  std::unordered_map<int, std::vector<GuardMetaData*>> guards_;
+
   friend class Version;
   friend class VersionSet;
+  friend class VersionBuilder;
   // No copying allowed
   VersionStorageInfo(const VersionStorageInfo&) = delete;
   void operator=(const VersionStorageInfo&) = delete;
@@ -552,6 +556,19 @@ class Version {
   VersionSet* version_set() { return vset_; }
 
   void GetColumnFamilyMetaData(ColumnFamilyMetaData* cf_meta);
+
+  int TotalGuards() {
+    int total = 0;
+    for (int i = 0; i < cfd()->NumberLevels(); i++) {
+      total += storage_info()->guards_[i].size();
+    }
+    return total;
+  }
+
+  void AddGuard(GuardMetaData* g, int level) {
+    assert(level >= 0 && level < cfd()->NumberLevels());
+    storage_info()->guards_[level].push_back(g);
+  }
 
  private:
   Env* env_;

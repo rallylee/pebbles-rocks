@@ -90,6 +90,7 @@ class VersionBuilder::Rep {
   VersionStorageInfo* base_vstorage_;
   int num_levels_;
   LevelState* levels_;
+
   // Store states of levels larger than num_levels_. We do this instead of
   // storing them in levels_ to avoid regression in case there are no files
   // on invalid levels. The version is not consistent if in the end the files
@@ -100,6 +101,7 @@ class VersionBuilder::Rep {
   bool has_invalid_levels_;
   FileComparator level_zero_cmp_;
   FileComparator level_nonzero_cmp_;
+  std::unordered_map<int, std::vector<GuardMetaData*>> guards_;
 
  public:
   Rep(const EnvOptions& env_options, Logger* info_log, TableCache* table_cache,
@@ -307,6 +309,21 @@ class VersionBuilder::Rep {
         }
       }
     }
+
+    // Add new guards
+    const auto& new_guards = edit->GetNewGuards();
+    for (std::vector<std::vector<GuardMetaData*>>::size_type index = 0; index < new_guards.size(); index++) {
+      int level = (int)index;
+      const auto& guards_in_level = new_guards[level];
+      for (const auto& guard_meta_data : guards_in_level) {
+        assert(guard_meta_data.level < num_levels_);
+        assert(guard_meta_data.level == level);
+        // Assume that GuardMetaData is stored in VersionEdit for each level
+        GuardMetaData* g = new GuardMetaData(guard_meta_data);
+        g->refs = 1;
+        guards_[level].push_back(g);
+      }
+    }
   }
 
   // Save the current state in *v.
@@ -362,6 +379,7 @@ class VersionBuilder::Rep {
     }
 
     CheckConsistency(vstorage);
+    vstorage->guards_ = guards_;
   }
 
   void LoadTableHandlers(InternalStats* internal_stats, int max_threads,
