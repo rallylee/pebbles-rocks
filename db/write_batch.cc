@@ -954,7 +954,7 @@ public:
    */
   class GuardInserter : public WriteBatch::Handler {
       public:
-          GuardInserter() : sequence_(), bit_mask(0), cf_mems_() {
+          GuardInserter() : sequence_(), cf_mems_() {
             new_batch = NULL;
             auto cf_handle = cf_mems_->GetColumnFamilyHandle();
             auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
@@ -988,11 +988,13 @@ public:
 
         // Go through each level, starting from the top and checking if it
         // is a guard on that level.
-        set_mask(num_bits);
-        if ((hash_result & bit_mask) == bit_mask) {
+        auto mask = bit_mask(num_bits);
+        if ((hash_result & mask) == mask) {
           return true;
         }
+        return false;
       }
+
       virtual void HandleGuard(const Slice& key, unsigned level) {
         //if (!version_) return;
         auto cf_handle = cf_mems_->GetColumnFamilyHandle();
@@ -1007,12 +1009,13 @@ public:
         //version_->AddToCompleteGuards(g, level);
         //sequence_++;
       }
-      void set_mask(unsigned num_bits) {
+
+      unsigned bit_mask(unsigned num_bits) {
         assert(num_bits > 0 && num_bits < 32);
-        bit_mask = (1 << num_bits) - 1;
+        return (1 << num_bits) - 1;
       }
+
       private:
-        unsigned bit_mask;
         const static unsigned top_level_bits = 27;
         const static int bit_decrement = 2;
         ColumnFamilyMemTables* const cf_mems_;
