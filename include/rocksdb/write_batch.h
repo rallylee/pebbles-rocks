@@ -64,12 +64,14 @@ class WriteBatch : public WriteBatchBase {
   ~WriteBatch() override;
 
   using WriteBatchBase::Put;
+  using WriteBatchBase::PutGuard;
   // Store the mapping "key->value" in the database.
   Status Put(ColumnFamilyHandle* column_family, const Slice& key,
              const Slice& value) override;
   Status Put(const Slice& key, const Slice& value) override {
     return Put(nullptr, key, value);
   }
+  Status PutGuard(const Slice& key, const unsigned level) override;
 
   // Variant of Put() that gathers output like writev(2).  The key and value
   // that will be written to the database are concatenations of arrays of

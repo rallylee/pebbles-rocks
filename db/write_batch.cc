@@ -505,10 +505,27 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
   return save.commit();
 }
 
+Status WriteBatchInternal::PutGuard(WriteBatch* b,
+                                    const Slice& key, const unsigned level) {
+  LocalSavePoint save(b);
+  WriteBatchInternal::SetCount(b, WriteBatchInternal::Count(b) + 1);
+  PutLengthPrefixedSlice(&b->rep_, key);
+  PutVarint32(&b->rep_, level);
+  b->content_flags_.store(
+          b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT,
+          std::memory_order_relaxed);
+  return save.commit();
+}
+
 Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
                        const Slice& value) {
   return WriteBatchInternal::Put(this, GetColumnFamilyID(column_family), key,
                                  value);
+}
+
+Status WriteBatch::PutGuard(const Slice& key, const unsigned level) {
+    return WriteBatchInternal::PutGuard(this, key,
+                                   level);
 }
 
 Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
@@ -954,15 +971,18 @@ public:
    */
   class GuardInserter : public WriteBatch::Handler {
       public:
-          GuardInserter() : sequence_(), cf_mems_() {
+          GuardInserter() : sequence_(), cf_mems_(), version_() {
             new_batch = NULL;
+            version_ = NULL;
             auto cf_handle = cf_mems_->GetColumnFamilyHandle();
             auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
             for (int i = 0; i < cfd->ioptions()->num_levels; i++)
               num_guards[i] = 0;
           }
-          WriteBatch* new_batch;
       SequenceNumber sequence_;
+      WriteBatch* new_batch;
+      ColumnFamilyMemTables* cf_mems_;
+      Version* version_;
       virtual void Put(const Slice& key, const Slice& value) {
         unsigned num_bits = top_level_bits;
         auto cf_handle = cf_mems_->GetColumnFamilyHandle();
@@ -973,7 +993,7 @@ public:
         for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
           if (IsGuardKey(i, key)) {
             for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
-//              new_batch->PutGuard(key, j);
+              new_batch->PutGuard(key, j);
               num_guards[j]++;
             }
             break;
@@ -998,7 +1018,7 @@ public:
       }
 
       virtual void HandleGuard(const Slice& key, unsigned level) {
-        //if (!version_) return;
+        if (!version_) return;
         auto cf_handle = cf_mems_->GetColumnFamilyHandle();
         auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
         assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
@@ -1008,8 +1028,8 @@ public:
         g->level = level;
         g->number_segments = 0;
         g->refs = 1;
-        //version_->AddToCompleteGuards(g, level);
-        //sequence_++;
+        version_->AddGuard(g, level);
+        sequence_++;
       }
 
       unsigned bit_mask(unsigned num_bits) {
@@ -1020,7 +1040,6 @@ public:
       private:
         const static unsigned top_level_bits = 27;
         const static int bit_decrement = 2;
-        ColumnFamilyMemTables* const cf_mems_;
 
         std::vector<int> num_guards;
 

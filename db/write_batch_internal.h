@@ -74,6 +74,8 @@ class WriteBatchInternal {
   static Status Put(WriteBatch* batch, uint32_t column_family_id,
                     const SliceParts& key, const SliceParts& value);
 
+  static Status PutGuard(WriteBatch* b, const Slice& key, const unsigned level);
+
   static Status Delete(WriteBatch* batch, uint32_t column_family_id,
                        const SliceParts& key);
 
