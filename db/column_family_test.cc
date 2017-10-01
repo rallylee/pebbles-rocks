@@ -361,17 +361,14 @@ class ColumnFamilyTest : public testing::Test {
                        "rocksdb.num-files-at-level" + ToString(level));
   }
 
-  int NumGuardsAtLevel(int level) {
-    std::string property;
-    ASSERT_TRUE(db_ -> GetProperty("rocksdb.num-guards-at-level" +
-        NumberToString(level), &property));
-    return atoi(property.c_str());
+  int NumGuardsAtLevel(int level, int cf) {
+    return GetProperty(cf, "rocksdb.num-guards-at-level");
   }
 
   int TotalGuards(int cf) {
     int result = 0;
-    for(int level = 0; level < db_ -> NumberLevels(cf); level++) {
-        result += NumGuardsAtLevel(level);
+    for(int level = 0; level < dbfull()->NumberLevels(handles_[cf]); level++) {
+        result += NumGuardsAtLevel(level, cf);
     }
     return result;
   }
@@ -828,11 +825,11 @@ TEST_F(ColumnFamilyTest, PutWithGuards) {
   for(int i = 0; i < 10; i++) {
     std::string key = std::to_string(i);
     std::string val = std::to_string(i * 10);
-    ASSERT_OK(Put(0, key, val))
+    ASSERT_OK(Put(0, key, val));
     printf("----------New key inserted----------\n");
-    printf("Total Guards: %d\n", TotalGuards())
+    printf("Total Guards: %d\n", TotalGuards(0));
   }
-  printf("Percentage Guards: %f\n", TotalGuards() / 10);
+  printf("Percentage Guards: %f\n", ((double)TotalGuards(0) / 10));
   Close();
 }
 

@@ -244,7 +244,7 @@ static const std::string actual_delayed_write_rate =
     "actual-delayed-write-rate";
 static const std::string is_write_stopped = "is-write-stopped";
 
-const std::string DB::Properties::kNumGuardsAtLevel = 0;
+const std::string DB::Properties::kNumGuardsAtLevel = "0";
 const std::string DB::Properties::kNumFilesAtLevelPrefix =
                       rocksdb_prefix + num_files_at_level_prefix;
 const std::string DB::Properties::kCompressionRatioAtLevelPrefix =
