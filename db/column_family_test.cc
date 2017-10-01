@@ -361,6 +361,21 @@ class ColumnFamilyTest : public testing::Test {
                        "rocksdb.num-files-at-level" + ToString(level));
   }
 
+  int NumGuardsAtLevel(int level) {
+    std::string property;
+    ASSERT_TRUE(db_ -> GetProperty("rocksdb.num-guards-at-level" +
+        NumberToString(level), &property));
+    return atoi(property.c_str());
+  }
+
+  int TotalGuards(int cf) {
+    int result = 0;
+    for(int level = 0; level < db_ -> NumberLevels(cf); level++) {
+        result += NumGuardsAtLevel(level);
+    }
+    return result;
+  }
+
 #ifndef ROCKSDB_LITE
   // Return spread of files per level
   std::string FilesPerLevel(int cf) {
@@ -482,6 +497,7 @@ class ColumnFamilyTest : public testing::Test {
     }
     ASSERT_OK(destfile->Close());
   }
+
 
   std::vector<ColumnFamilyHandle*> handles_;
   std::vector<std::string> names_;
@@ -803,6 +819,20 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
       Reopen();
     }
   }
+  Close();
+}
+
+TEST_F(ColumnFamilyTest, PutWithGuards) {
+  Open();
+  CreateColumnFamiliesAndReopen({"one", "two"});
+  for(int i = 0; i < 10; i++) {
+    std::string key = std::to_string(i);
+    std::string val = std::to_string(i * 10);
+    ASSERT_OK(Put(0, key, val))
+    printf("----------New key inserted----------\n");
+    printf("Total Guards: %d\n", TotalGuards())
+  }
+  printf("Percentage Guards: %f\n", TotalGuards() / 10);
   Close();
 }
 
