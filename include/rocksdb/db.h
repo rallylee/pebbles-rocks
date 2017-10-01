@@ -407,6 +407,12 @@ class DB {
   // NOTE: Property names cannot end in numbers since those are interpreted as
   //       arguments, e.g., see kNumFilesAtLevelPrefix.
   struct Properties {
+
+    //  "rocksdb.num-guards-at-level<N>" - returns string containing the number
+    //      of guards at level <N>, where <N> is an ASCII representation of a
+    //      level number (e.g., "0").
+    static const std::string kNumGuardsAtLevel;
+
     //  "rocksdb.num-files-at-level<N>" - returns string containing the number
     //      of files at level <N>, where <N> is an ASCII representation of a
     //      level number (e.g., "0").

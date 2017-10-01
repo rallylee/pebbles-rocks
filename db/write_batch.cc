@@ -971,7 +971,7 @@ public:
         // Go through each level, starting from the top and checking if it
         // is a guard on that level.
         for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
-          if (IsGuardKey(i, key)) {
+          if (debug_IsGuardKey(i, key, top_level_bits)) {
             for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
 //              new_batch->PutGuard(key, j);
               num_guards[j]++;
@@ -985,6 +985,20 @@ public:
       virtual bool IsGuardKey(unsigned level, const Slice& key) {
         void* input = (void*) key.data();
         unsigned num_bits = top_level_bits - (level * bit_decrement);
+        const unsigned int murmur_seed = 42;
+        unsigned int hash_result;
+        size_t size = key.size();
+        MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
+
+        auto mask = bit_mask(num_bits);
+        if ((hash_result & mask) == mask) {
+          return true;
+        }
+        return false;
+      }
+      virtual bool debug_IsGuardKey(unsigned level, const Slice& key, unsigned
+      num_bits) {
+        void* input = (void*) key.data();
         const unsigned int murmur_seed = 42;
         unsigned int hash_result;
         size_t size = key.size();
