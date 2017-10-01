@@ -967,8 +967,11 @@ public:
         unsigned num_bits = top_level_bits;
         auto cf_handle = cf_mems_->GetColumnFamilyHandle();
         auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+
+        // Go through each level, starting from the top and checking if it
+        // is a guard on that level.
         for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
-          if (IsKey(num_bits, key)) {
+          if (IsGuardKey(i, key)) {
             for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
 //              new_batch->PutGuard(key, j);
               num_guards[j]++;
@@ -979,15 +982,14 @@ public:
           num_bits -= bit_decrement;
         }
       }
-      virtual bool IsKey(unsigned num_bits, const Slice& key) {
+      virtual bool IsGuardKey(unsigned level, const Slice& key) {
         void* input = (void*) key.data();
+        unsigned num_bits = top_level_bits - (level * bit_decrement);
         const unsigned int murmur_seed = 42;
         unsigned int hash_result;
         size_t size = key.size();
         MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
 
-        // Go through each level, starting from the top and checking if it
-        // is a guard on that level.
         auto mask = bit_mask(num_bits);
         if ((hash_result & mask) == mask) {
           return true;
