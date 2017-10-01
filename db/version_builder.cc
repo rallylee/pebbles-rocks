@@ -101,7 +101,8 @@ class VersionBuilder::Rep {
   bool has_invalid_levels_;
   FileComparator level_zero_cmp_;
   FileComparator level_nonzero_cmp_;
-  std::unordered_map<int, std::vector<GuardMetaData*>> guards_;
+  std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
+  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
 
  public:
   Rep(const EnvOptions& env_options, Logger* info_log, TableCache* table_cache,
@@ -310,18 +311,31 @@ class VersionBuilder::Rep {
       }
     }
 
-    // Add new guards
+    // Add guards
     const auto& new_guards = edit->GetNewGuards();
+    const auto& complete_guards = edit->GetCompleteGuards();
     for (std::vector<std::vector<GuardMetaData*>>::size_type index = 0; index < new_guards.size(); index++) {
       int level = (int)index;
-      const auto& guards_in_level = new_guards[level];
-      for (const auto& guard_meta_data : guards_in_level) {
+      const auto& new_guards_in_level = new_guards[level];
+      for (const auto& guard_meta_data : new_guards_in_level) {
         assert(guard_meta_data.level < num_levels_);
         assert(guard_meta_data.level == level);
         // Assume that GuardMetaData is stored in VersionEdit for each level
         GuardMetaData* g = new GuardMetaData(guard_meta_data);
         g->refs = 1;
-        guards_[level].push_back(g);
+        new_guards_[level].push_back(g);
+      }
+    }
+    for (std::vector<std::vector<GuardMetaData*>>::size_type index = 0; index < complete_guards.size(); index++) {
+      int level = (int)index;
+      const auto& complete_guards_in_level = complete_guards[level];
+      for (const auto& guard_meta_data : complete_guards_in_level) {
+        assert(guard_meta_data.level < num_levels_);
+        assert(guard_meta_data.level == level);
+        // Assume that GuardMetaData is stored in VersionEdit for each level
+        GuardMetaData* g = new GuardMetaData(guard_meta_data);
+        g->refs = 1;
+        complete_guards_[level].push_back(g);
       }
     }
   }
@@ -379,7 +393,10 @@ class VersionBuilder::Rep {
     }
 
     CheckConsistency(vstorage);
-    vstorage->guards_ = guards_;
+
+
+    vstorage->complete_guards_ = complete_guards_;
+    vstorage->new_guards_ = new_guards_;
   }
 
   void LoadTableHandlers(InternalStats* internal_stats, int max_threads,

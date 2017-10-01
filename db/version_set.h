@@ -443,7 +443,8 @@ class VersionStorageInfo {
   bool force_consistency_checks_;
 
   // List of guards for each level
-  std::unordered_map<int, std::vector<GuardMetaData*>> guards_;
+  std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
+  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
 
   friend class Version;
   friend class VersionSet;
@@ -560,14 +561,17 @@ class Version {
   int TotalGuards() {
     int total = 0;
     for (int i = 0; i < cfd()->NumberLevels(); i++) {
-      total += storage_info()->guards_[i].size();
+      total += storage_info()->new_guards_[i].size();
+    }
+    for (int i = 0; i < cfd()->NumberLevels(); i++) {
+      total += storage_info()->complete_guards_[i].size();
     }
     return total;
   }
 
   void AddGuard(GuardMetaData* g, int level) {
     assert(level >= 0 && level < cfd()->NumberLevels());
-    storage_info()->guards_[level].push_back(g);
+    storage_info()->new_guards_[level].push_back(g);
   }
 
  private:

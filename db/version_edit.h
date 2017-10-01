@@ -263,33 +263,14 @@ class VersionEdit {
     sentinel_file_nos_[level].push_back(number);
   }
 
-  void AddGuard(int level, const InternalKey& guard_key) {
-    GuardMetaData g;
-    g.guard_key = guard_key;
-    g.level = level;
-    g.number_segments = 0;
-    new_guards_[level].push_back(g);
-  }
-
-  void AddGuardFromExisting(int level, GuardMetaData* g) {
+  void AddNewGuard(int level, GuardMetaData* g) {
     GuardMetaData new_g(*g);
     new_guards_[level].push_back(new_g);
   }
 
-  /* A version of AddGuard that contains files. */
-  void AddGuardWithFiles(int level, uint64_t number_segments,
-                         const InternalKey& guard_key,
-                         const InternalKey& smallest,
-                         const InternalKey& largest,
-                         const std::vector<uint64_t> files) {
-    GuardMetaData g;
-    g.guard_key = guard_key;
-    g.level = level;
-    g.smallest = smallest;
-    g.largest = largest;
-    g.number_segments = number_segments;
-    g.files.insert(g.files.end(), files.begin(), files.end());
-    new_guards_[level].push_back(g);
+  void AddCompleteGuard(int level, GuardMetaData* g) {
+    GuardMetaData new_g(*g);
+    complete_guards_[level].push_back(new_g);
   }
 
   // Delete the specified "file" from the specified "level".
@@ -345,6 +326,10 @@ class VersionEdit {
     return new_guards_;
   }
 
+  const std::vector<std::vector<GuardMetaData>>& GetCompleteGuards() {
+    return complete_guards_;
+  }
+
  private:
   friend class VersionSet;
   friend class Version;
@@ -380,6 +365,7 @@ class VersionEdit {
   std::vector<std::vector<FileMetaData>> sentinel_files_;
   std::vector<std::vector<uint64_t>> sentinel_file_nos_;
   std::vector<std::vector<GuardMetaData>> new_guards_;
+  std::vector<std::vector<GuardMetaData>> complete_guards_;
 };
 
 }  // namespace rocksdb

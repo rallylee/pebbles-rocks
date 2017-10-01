@@ -3413,7 +3413,10 @@ Status VersionSet::WriteSnapshot(log::Writer* log) {
 
       // Save guards
       for (int level = 0; level < cfd->NumberLevels(); level++) {
-        for (const auto& guard_metadata __attribute__((unused)): cfd->current()->storage_info()->guards_[level]) {
+        for (const auto& guard_metadata __attribute__((unused)): cfd->current()->storage_info()->new_guards_[level]) {
+          // TODO(souvik1997): edit.AddGuardFromExisting(level, &guard_metadata);
+        }
+        for (const auto& guard_metadata __attribute__((unused)): cfd->current()->storage_info()->complete_guards_[level]) {
           // TODO(souvik1997): edit.AddGuardFromExisting(level, &guard_metadata);
         }
       }
