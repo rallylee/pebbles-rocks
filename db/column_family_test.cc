@@ -362,7 +362,7 @@ class ColumnFamilyTest : public testing::Test {
   }
 
   int NumGuardsAtLevel(int level, int cf) {
-    return GetProperty(cf, "rocksdb.num-guards-at-level");
+    return GetProperty(cf, "rocksdb.num-guards-at-level" + ToString(level));
   }
 
   int TotalGuards(int cf) {

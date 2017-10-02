@@ -411,7 +411,7 @@ class DB {
     //  "rocksdb.num-guards-at-level<N>" - returns string containing the number
     //      of guards at level <N>, where <N> is an ASCII representation of a
     //      level number (e.g., "0").
-    static const std::string kNumGuardsAtLevel;
+    static const std::string kNumGuardsAtLevelPrefix;
 
     //  "rocksdb.num-files-at-level<N>" - returns string containing the number
     //      of files at level <N>, where <N> is an ASCII representation of a
