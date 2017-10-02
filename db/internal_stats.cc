@@ -486,7 +486,11 @@ bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
         return false;
     } else {
         char buf[100];
-        std::vector<GuardMetaData*> complete_guards = vstorage->complete_guards_.find(static_cast<int>(level))->second;
+        std::vector<GuardMetaData*> complete_guards;
+        const auto& ref = vstorage->complete_guards_.find(static_cast<int>(level));
+        if (ref != vstorage->complete_guards_.end()) {
+          complete_guards = ref->second;
+        }
         snprintf(buf, sizeof(buf), "%d",
                  static_cast<int>(complete_guards.size()));
         *value = buf;
