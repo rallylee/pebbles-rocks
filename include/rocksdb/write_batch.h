@@ -71,7 +71,7 @@ class WriteBatch : public WriteBatchBase {
   Status Put(const Slice& key, const Slice& value) override {
     return Put(nullptr, key, value);
   }
-  Status PutGuard(const Slice& key, const unsigned level) override;
+  Status PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) override;
 
   // Variant of Put() that gathers output like writev(2).  The key and value
   // that will be written to the database are concatenations of arrays of
@@ -181,7 +181,7 @@ class WriteBatch : public WriteBatchBase {
     // All handler functions in this class provide default implementations so
     // we won't break existing clients of Handler on a source code level when
     // adding a new member function.
-    virtual void HandleGuard(const Slice& key, unsigned level) {}
+    virtual void HandleGuard(uint32_t column_family_id, const Slice& key, unsigned level) {}
     // default implementation will just call Put without column family for
     // backwards compatibility. If the column family is not default,
     // the function is noop

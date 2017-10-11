@@ -71,6 +71,7 @@ enum ContentFlags : uint32_t {
   HAS_COMMIT = 1 << 7,
   HAS_ROLLBACK = 1 << 8,
   HAS_DELETE_RANGE = 1 << 9,
+  HAS_PUT_GUARD = 1 << 10,
 };
 // TODO(souvik1997): remove pragma once we've finished writing GuardInserter
 #pragma GCC diagnostic push
@@ -82,28 +83,35 @@ class GuardInserter : public WriteBatch::Handler {
   SequenceNumber sequence_;
   ColumnFamilyMemTables* cf_mems_;
   WriteBatch* new_batch_;
-  virtual void Put(const Slice& key, const Slice& value) {
-    unsigned num_bits = top_level_bits;
 
+
+
+  virtual Status PutCF(uint32_t column_family_id, const Slice& key, const Slice& value) {
+    unsigned num_bits = top_level_bits;
+    if (!cf_mems_->Seek(column_family_id)) {
+      return Status::NotFound("failed to seek to column family id");
+    }
     const auto& cf_handle = cf_mems_->GetColumnFamilyHandle();
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
 
     // Go through each level, starting from the top and checking if it
     // is a guard on that level.
-    for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels);
-         i++) {
+    unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
+    for (unsigned i = 0; i < num_levels; i++) {
+      auto& guards_vec = num_guards.emplace(column_family_id, num_levels).first /* first in pair is iterator */ -> second /* second in iterator is the actual std::vector */;
       if (debug_IsGuardKey(0, key, top_level_bits)) {
-        for (unsigned j = i;
-             j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
-          new_batch_->PutGuard(key, j);
-          num_guards[j]++;
+        for (unsigned j = i; j < num_levels; j++) {
+          new_batch_->PutGuard(cf_handle, key, j);
+          guards_vec[j]++;
         }
         break;
       }
       // Check next level
       num_bits -= bit_decrement;
     }
+    return Status::OK();
   }
+
   virtual bool IsGuardKey(unsigned level, const Slice& key) {
     void* input = (void*)key.data();
     unsigned num_bits = top_level_bits - (level * bit_decrement);
@@ -142,7 +150,8 @@ class GuardInserter : public WriteBatch::Handler {
   const static unsigned top_level_bits = 27;
   const static int bit_decrement = 2;
 
-  std::vector<int> num_guards;
+  // cf id -> vector of number of guards at each level
+  std::unordered_map<uint32_t, std::vector<int>> num_guards;
 
   GuardInserter(const GuardInserter&);
   GuardInserter& operator=(const GuardInserter&);
@@ -354,7 +363,8 @@ bool WriteBatch::HasRollback() const {
 
 Status ReadRecordFromWriteBatch(Slice* input, char* tag,
                                 uint32_t* column_family, Slice* key,
-                                Slice* value, Slice* blob, Slice* xid) {
+                                Slice* value, Slice* blob, Slice* xid,
+                                uint32_t* level) {
   assert(key != nullptr && value != nullptr);
   *tag = (*input)[0];
   input->remove_prefix(1);
@@ -430,6 +440,13 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
         return Status::Corruption("bad Rollback XID");
       }
       break;
+    case kTypeGuard:
+      if (!GetLengthPrefixedSlice(input, key) ||
+          !GetVarint32(input, level) ||
+          !GetVarint32(input, column_family)) {
+        return Status::Corruption("bad WriteBatch PutGuard");
+      }
+      break;
     default:
       return Status::Corruption("unknown WriteBatch tag");
   }
@@ -452,7 +469,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
     uint32_t column_family = 0;  // default
 
     s = ReadRecordFromWriteBatch(&input, &tag, &column_family, &key, &value,
-                                 &blob, &xid);
+                                 &blob, &xid, &level);
     if (!s.ok()) {
       return s;
     }
@@ -519,12 +536,9 @@ Status WriteBatch::Iterate(Handler* handler) const {
       case kTypeNoop:
         break;
       case kTypeGuard:
-        if (GetLengthPrefixedSlice(&input, &key) &&
-            GetVarint32(&input, &level)) {
-          handler->HandleGuard(key, level);
-        } else {
-          return Status::Corruption("bad WriteBatch Guard");
-        }
+        assert(content_flags_.load(std::memory_order_relaxed) & (ContentFlags::DEFERRED | ContentFlags::HAS_PUT_GUARD));
+        handler->HandleGuard(column_family, key, level);
+        found++;
         break;
       default:
         return Status::Corruption("unknown WriteBatch tag");
@@ -579,14 +593,15 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
   return save.commit();
 }
 
-Status WriteBatchInternal::PutGuard(WriteBatch* b, const Slice& key,
-                                    const unsigned level) {
+Status WriteBatchInternal::PutGuard(WriteBatch* b, uint32_t column_family_id, const Slice& key, const unsigned level) {
   LocalSavePoint save(b);
   WriteBatchInternal::SetCount(b, WriteBatchInternal::Count(b) + 1);
+  b->rep_.push_back(static_cast<char>(kTypeGuard));
   PutLengthPrefixedSlice(&b->rep_, key);
   PutVarint32(&b->rep_, level);
+  PutVarint32(&b->rep_, column_family_id);
   b->content_flags_.store(
-      b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT,
+      b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT_GUARD,
       std::memory_order_relaxed);
   return save.commit();
 }
@@ -597,8 +612,8 @@ Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
                                  value);
 }
 
-Status WriteBatch::PutGuard(const Slice& key, const unsigned level) {
-  return WriteBatchInternal::PutGuard(this, key, level);
+  Status WriteBatch::PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) {
+    return WriteBatchInternal::PutGuard(this, GetColumnFamilyID(column_family), key, level);
 }
 
 Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
@@ -984,7 +999,12 @@ class MemTableInserter : public WriteBatch::Handler {
 
   SequenceNumber sequence() const { return sequence_; }
 
-  virtual void HandleGuard(const Slice& key, unsigned level) {
+  virtual void HandleGuard(uint32_t column_family_id, const Slice& key, unsigned level) {
+    Status s;
+    SeekToColumnFamily(column_family_id, &s);
+    if (!s.ok()) {
+      assert(false); // ????
+    }
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
     assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));

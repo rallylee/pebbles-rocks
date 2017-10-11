@@ -826,7 +826,8 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
         std::string val = std::to_string(i * 10);
         ASSERT_OK(Put(0, key, val));
         printf("----------New key inserted----------\n");
-        printf("Total Guards: %d\n", TotalGuards(0));
+        auto result = TotalGuards(0);
+        printf("Total Guards: %d\n", result);
       }
       printf("Percentage Guards: %f\n", ((double)TotalGuards(0) / 10));
       Close();

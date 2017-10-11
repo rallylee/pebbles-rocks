@@ -521,13 +521,14 @@ void WriteBatchWithIndex::Rep::AddNewEntry(uint32_t column_family_id) {
     while (s.ok() && !input.empty()) {
       Slice key, value, blob, xid;
       uint32_t column_family_id = 0;  // default
+      uint32_t level = 0; // unused
       char tag = 0;
 
       // set offset of current entry for call to AddNewEntry()
       last_entry_offset = input.data() - write_batch.Data().data();
 
       s = ReadRecordFromWriteBatch(&input, &tag, &column_family_id, &key,
-                                   &value, &blob, &xid);
+                                   &value, &blob, &xid, &level);
       if (!s.ok()) {
         break;
       }

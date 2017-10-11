@@ -58,10 +58,10 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
 #endif  // ROCKSDB_LITE
 
 Status DBImpl::WriteImpl(const WriteOptions& write_options,
-                         WriteBatch* my_batch, WriteCallback* callback,
+                         WriteBatch* original_batch, WriteCallback* callback,
                          uint64_t* log_used, uint64_t log_ref,
                          bool disable_memtable, uint64_t* seq_used) {
-  if (my_batch == nullptr) {
+  if (original_batch == nullptr) {
     return Status::Corruption("Batch is nullptr!");
   }
   if (concurrent_prepare_ && immutable_db_options_.enable_pipelined_write) {
@@ -72,8 +72,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
 
 
   Status status;
-  WriteBatch* updates_with_guards = new WriteBatch(*my_batch);
-  status = WriteBatchInternal::SetGuards(my_batch, updates_with_guards, column_family_memtables_.get());
+  WriteBatch* updates_with_guards = new WriteBatch(*original_batch);
+  ColumnFamilyMemTablesImpl column_family_memtables_tmp(versions_->GetColumnFamilySet());
+  status = WriteBatchInternal::SetGuards(original_batch, updates_with_guards, &column_family_memtables_tmp);
   if (write_options.low_pri) {
     status = ThrottleLowPriWritesIfNeeded(write_options, updates_with_guards);
     if (!status.ok()) {

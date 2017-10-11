@@ -31,8 +31,8 @@ Status WriteBatchBase::Put(const SliceParts& key, const SliceParts& value) {
   return Put(key_slice, value_slice);
 }
 
-Status WriteBatchBase::PutGuard(const Slice& key, const unsigned level) {
-  return PutGuard(key, level);
+  Status WriteBatchBase::PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) {
+    return PutGuard(column_family, key, level);
 }
 
 Status WriteBatchBase::Delete(ColumnFamilyHandle* column_family,
