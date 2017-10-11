@@ -69,26 +69,30 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
         "pipelined_writes is not compatible with concurrent prepares");
   }
 
+
+
   Status status;
+  WriteBatch* updates_with_guards = new WriteBatch(*my_batch);
+  status = WriteBatchInternal::SetGuards(my_batch, updates_with_guards, column_family_memtables_.get());
   if (write_options.low_pri) {
-    status = ThrottleLowPriWritesIfNeeded(write_options, my_batch);
+    status = ThrottleLowPriWritesIfNeeded(write_options, updates_with_guards);
     if (!status.ok()) {
       return status;
     }
   }
 
   if (concurrent_prepare_ && disable_memtable) {
-    return WriteImplWALOnly(write_options, my_batch, callback, log_used,
+    return WriteImplWALOnly(write_options, updates_with_guards, callback, log_used,
                             log_ref, seq_used);
   }
 
   if (immutable_db_options_.enable_pipelined_write) {
-    return PipelinedWriteImpl(write_options, my_batch, callback, log_used,
+    return PipelinedWriteImpl(write_options, updates_with_guards, callback, log_used,
                               log_ref, disable_memtable, seq_used);
   }
 
   PERF_TIMER_GUARD(write_pre_and_post_process_time);
-  WriteThread::Writer w(write_options, my_batch, callback, log_ref,
+  WriteThread::Writer w(write_options, updates_with_guards, callback, log_ref,
                         disable_memtable);
 
   if (!write_options.disableWAL) {
