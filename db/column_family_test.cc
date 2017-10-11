@@ -8,9 +8,9 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include <algorithm>
-#include <vector>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "db/db_impl.h"
 #include "db/db_test_util.h"
@@ -44,9 +44,7 @@ class EnvCounter : public EnvWrapper {
  public:
   explicit EnvCounter(Env* base)
       : EnvWrapper(base), num_new_writable_file_(0) {}
-  int GetNumberOfNewWritableFileCalls() {
-    return num_new_writable_file_;
-  }
+  int GetNumberOfNewWritableFileCalls() { return num_new_writable_file_; }
   Status NewWritableFile(const std::string& f, unique_ptr<WritableFile>* r,
                          const EnvOptions& soptions) override {
     ++num_new_writable_file_;
@@ -171,7 +169,7 @@ class ColumnFamilyTest : public testing::Test {
   }
 
   Status OpenReadOnly(std::vector<std::string> cf,
-                         std::vector<ColumnFamilyOptions> options = {}) {
+                      std::vector<ColumnFamilyOptions> options = {}) {
     std::vector<ColumnFamilyDescriptor> column_families;
     names_.clear();
     for (size_t i = 0; i < cf.size(); ++i) {
@@ -185,20 +183,17 @@ class ColumnFamilyTest : public testing::Test {
 
 #ifndef ROCKSDB_LITE  // ReadOnlyDB is not supported
   void AssertOpenReadOnly(std::vector<std::string> cf,
-                    std::vector<ColumnFamilyOptions> options = {}) {
+                          std::vector<ColumnFamilyOptions> options = {}) {
     ASSERT_OK(OpenReadOnly(cf, options));
   }
 #endif  // !ROCKSDB_LITE
-
 
   void Open(std::vector<std::string> cf,
             std::vector<ColumnFamilyOptions> options = {}) {
     ASSERT_OK(TryOpen(cf, options));
   }
 
-  void Open() {
-    Open({"default"});
-  }
+  void Open() { Open({"default"}); }
 
   DBImpl* dbfull() { return reinterpret_cast<DBImpl*>(db_); }
 
@@ -310,9 +305,7 @@ class ColumnFamilyTest : public testing::Test {
     ASSERT_OK(dbfull()->TEST_WaitForFlushMemTable(handles_[cf]));
   }
 
-  void WaitForCompaction() {
-    ASSERT_OK(dbfull()->TEST_WaitForCompact());
-  }
+  void WaitForCompaction() { ASSERT_OK(dbfull()->TEST_WaitForCompact()); }
 
   uint64_t MaxTotalInMemoryState() {
     return dbfull()->TEST_MaxTotalInMemoryState();
@@ -329,9 +322,7 @@ class ColumnFamilyTest : public testing::Test {
   Status Merge(int cf, const std::string& key, const std::string& value) {
     return db_->Merge(WriteOptions(), handles_[cf], Slice(key), Slice(value));
   }
-  Status Flush(int cf) {
-    return db_->Flush(FlushOptions(), handles_[cf]);
-  }
+  Status Flush(int cf) { return db_->Flush(FlushOptions(), handles_[cf]); }
 
   std::string Get(int cf, const std::string& key) {
     ReadOptions options;
@@ -357,21 +348,20 @@ class ColumnFamilyTest : public testing::Test {
   }
 
   int NumTableFilesAtLevel(int level, int cf) {
-    return GetProperty(cf,
-                       "rocksdb.num-files-at-level" + ToString(level));
+    return GetProperty(cf, "rocksdb.num-files-at-level" + ToString(level));
   }
 
-        int NumGuardsAtLevel(int level, int cf) {
-          return GetProperty(cf, "rocksdb.num-guards-at-level" + ToString(level));
-        }
+  int NumGuardsAtLevel(int level, int cf) {
+    return GetProperty(cf, "rocksdb.num-guards-at-level" + ToString(level));
+  }
 
-        int TotalGuards(int cf) {
-          int result = 0;
-          for(int level = 0; level < dbfull()->NumberLevels(handles_[cf]); level++) {
-            result += NumGuardsAtLevel(level, cf);
-          }
-          return result;
-        }
+  int TotalGuards(int cf) {
+    int result = 0;
+    for (int level = 0; level < dbfull()->NumberLevels(handles_[cf]); level++) {
+      result += NumGuardsAtLevel(level, cf);
+    }
+    return result;
+  }
 
 #ifndef ROCKSDB_LITE
   // Return spread of files per level
@@ -818,20 +808,20 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
   Close();
 }
 
-    TEST_F(ColumnFamilyTest, PutWithGuards) {
-      Open();
-      CreateColumnFamiliesAndReopen({"one", "two"});
-      for(int i = 0; i < 10; i++) {
-        std::string key = std::to_string(i);
-        std::string val = std::to_string(i * 10);
-        ASSERT_OK(Put(0, key, val));
-        printf("----------New key inserted----------\n");
-        auto result = TotalGuards(0);
-        printf("Total Guards: %d\n", result);
-      }
-      printf("Percentage Guards: %f\n", ((double)TotalGuards(0) / 10));
-      Close();
-    }
+TEST_F(ColumnFamilyTest, PutWithGuards) {
+  Open();
+  CreateColumnFamiliesAndReopen({"one", "two"});
+  for (int i = 0; i < 10; i++) {
+    std::string key = std::to_string(i);
+    std::string val = std::to_string(i * 10);
+    ASSERT_OK(Put(0, key, val));
+    printf("----------New key inserted----------\n");
+    auto result = TotalGuards(0);
+    printf("Total Guards: %d\n", result);
+  }
+  printf("Percentage Guards: %f\n", ((double)TotalGuards(0) / 10));
+  Close();
+}
 
 TEST_F(ColumnFamilyTest, IgnoreRecoveredLog) {
   std::string backup_logs = dbname_ + "/backup_logs";
@@ -927,8 +917,7 @@ TEST_F(ColumnFamilyTest, FlushTest) {
     }
 
     for (int i = 0; i < 3; ++i) {
-      uint64_t max_total_in_memory_state =
-          MaxTotalInMemoryState();
+      uint64_t max_total_in_memory_state = MaxTotalInMemoryState();
       Flush(i);
       AssertMaxTotalInMemoryState(max_total_in_memory_state);
     }
@@ -1162,7 +1151,7 @@ TEST_F(ColumnFamilyTest, DifferentWriteBufferSizes) {
   WaitForFlush(2);
   AssertNumberOfImmutableMemtables({0, 0, 0, 0});
   AssertCountLiveLogFiles(12);
-  PutRandomData(1, 2*200, 1000);
+  PutRandomData(1, 2 * 200, 1000);
   WaitForFlush(1);
   AssertNumberOfImmutableMemtables({0, 0, 0, 0});
   AssertCountLiveLogFiles(7);
@@ -2182,7 +2171,6 @@ TEST_F(ColumnFamilyTest, ReadOnlyDBTest) {
   ASSERT_EQ("bla", Get(1, "foo"));
   ASSERT_EQ("blablablabla", Get(2, "foo"));
 
-
   // test newiterators
   {
     std::vector<Iterator*> iterators;
@@ -2503,18 +2491,18 @@ TEST_F(ColumnFamilyTest, CreateAndDropRace) {
 
   auto main_thread_id = std::this_thread::get_id();
 
-  rocksdb::SyncPoint::GetInstance()->SetCallBack("PersistRocksDBOptions:start",
-                                                 [&](void* arg) {
-    auto current_thread_id = std::this_thread::get_id();
-    // If it's the main thread hitting this sync-point, then it
-    // will be blocked until some other thread update the test_stage.
-    if (main_thread_id == current_thread_id) {
-      test_stage = kMainThreadStartPersistingOptionsFile;
-      while (test_stage < kChildThreadFinishDroppingColumnFamily) {
-        Env::Default()->SleepForMicroseconds(100);
-      }
-    }
-  });
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
+      "PersistRocksDBOptions:start", [&](void* arg) {
+        auto current_thread_id = std::this_thread::get_id();
+        // If it's the main thread hitting this sync-point, then it
+        // will be blocked until some other thread update the test_stage.
+        if (main_thread_id == current_thread_id) {
+          test_stage = kMainThreadStartPersistingOptionsFile;
+          while (test_stage < kChildThreadFinishDroppingColumnFamily) {
+            Env::Default()->SleepForMicroseconds(100);
+          }
+        }
+      });
 
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "WriteThread::EnterUnbatched:Wait", [&](void* arg) {
@@ -2536,7 +2524,8 @@ TEST_F(ColumnFamilyTest, CreateAndDropRace) {
 
   // Start a thread that will drop the first column family
   // and its comparator
-  rocksdb::port::Thread drop_cf_thread(DropSingleColumnFamily, this, 1, &comparators);
+  rocksdb::port::Thread drop_cf_thread(DropSingleColumnFamily, this, 1,
+                                       &comparators);
 
   DropColumnFamilies({2});
 
