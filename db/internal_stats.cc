@@ -465,7 +465,7 @@ bool InternalStats::GetIntPropertyOutOfMutex(
 
 bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
   uint64_t level;
-  const auto* vstorage = cfd_->current()->storage_info();
+  const auto* vstorage = cfd_->dummy_versions()->storage_info();
   bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
   if (!ok || static_cast<int>(level) >= number_levels_) {
     return false;
@@ -482,6 +482,12 @@ bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
     uint64_t level;
     const auto* vstorage = cfd_->current()->storage_info();
     bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
+    if(vstorage->complete_guards_.empty()) {
+        char buf[100];
+        //snprintf(buf, sizeof(buf), "%d", static_cast<int>(45));
+        *value = buf;
+        return true;
+    }
     if (!ok || static_cast<int>(level) >= number_levels_) {
         return false;
     } else {
@@ -489,10 +495,12 @@ bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
         std::vector<GuardMetaData*> complete_guards;
         const auto& ref = vstorage->complete_guards_.find(static_cast<int>(level));
         if (ref != vstorage->complete_guards_.end()) {
+          //snprintf(buf, sizeof(buf), "%d", static_cast<int>(5));
           complete_guards = ref->second;
         }
         snprintf(buf, sizeof(buf), "%d",
                  static_cast<int>(complete_guards.size()));
+        //snprintf(buf, sizeof(buf), "%d", static_cast<int>(cfd_->current()->GetVersionNumber()));
         *value = buf;
         return true;
     }

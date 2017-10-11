@@ -43,6 +43,7 @@
 #include "db/flush_scheduler.h"
 #include "db/memtable.h"
 #include "db/merge_context.h"
+#include "util/murmurhash.h"
 #include "db/snapshot_impl.h"
 #include "db/write_batch_internal.h"
 #include "monitoring/perf_context_imp.h"
@@ -51,7 +52,6 @@
 #include "util/coding.h"
 #include "util/string_util.h"
 
-#include "db/murmurhash3.h"
 #include "db/version_edit.h"
 #include "db/version_set.h"
 
@@ -72,6 +72,97 @@ enum ContentFlags : uint32_t {
   HAS_ROLLBACK = 1 << 8,
   HAS_DELETE_RANGE = 1 << 9,
 };
+    class GuardInserter : public WriteBatch::Handler {
+    public:
+        GuardInserter() : sequence_(), cf_mems_(), version_() {
+          new_batch = NULL;
+          version_ = NULL;
+          auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+          auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+          for (int i = 0; i < cfd->ioptions()->num_levels; i++)
+            num_guards[i] = 0;
+        }
+        SequenceNumber sequence_;
+        WriteBatch* new_batch;
+        ColumnFamilyMemTables* cf_mems_;
+        Version* version_;
+        virtual void Put(const Slice& key, const Slice& value) {
+          unsigned num_bits = top_level_bits;
+          auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+          auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+
+          // Go through each level, starting from the top and checking if it
+          // is a guard on that level.
+          for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
+            if (debug_IsGuardKey(0, key, top_level_bits)) {
+              for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
+                new_batch->PutGuard(key, j);
+                num_guards[j]++;
+              }
+              break;
+            }
+            // Check next level
+            num_bits -= bit_decrement;
+          }
+        }
+        virtual bool IsGuardKey(unsigned level, const Slice& key) {
+          void* input = (void*) key.data();
+          unsigned num_bits = top_level_bits - (level * bit_decrement);
+          const unsigned int murmur_seed = 42;
+          unsigned int hash_result;
+          size_t size = key.size();
+          //MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
+
+          //auto mask = bit_mask(num_bits);
+          //if ((hash_result & mask) == mask) {
+            return true;
+          //}
+          //return false;
+        }
+        virtual bool debug_IsGuardKey(unsigned level, const Slice& key, unsigned
+        num_bits) {
+          void* input = (void*) key.data();
+          const unsigned int murmur_seed = 42;
+          unsigned int hash_result;
+          size_t size = key.size();
+          //MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
+
+          //auto mask = bit_mask(num_bits);
+          //if ((hash_result & mask) == mask) {
+            return true;
+          //}
+          //return false;
+        }
+
+        virtual void HandleGuard(const Slice& key, unsigned level) {
+          if (!version_) return;
+          auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+          auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
+          assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
+          GuardMetaData* g = new GuardMetaData();
+          InternalKey ikey(key, sequence_, kTypeValue);
+          g->guard_key = ikey;
+          g->level = level;
+          g->number_segments = 0;
+          g->refs = 1;
+          version_->AddGuard(g, level);
+          sequence_++;
+        }
+
+        unsigned bit_mask(unsigned num_bits) {
+          assert(num_bits > 0 && num_bits < 32);
+          return (1 << num_bits) - 1;
+        }
+
+    private:
+        const static unsigned top_level_bits = 27;
+        const static int bit_decrement = 2;
+
+        std::vector<int> num_guards;
+
+        GuardInserter(const GuardInserter&);
+        GuardInserter& operator = (const GuardInserter&);
+    };
 
 struct BatchContentClassifier : public WriteBatch::Handler {
   uint32_t content_flags = 0;
@@ -862,6 +953,7 @@ class MemTableInserter : public WriteBatch::Handler {
   // cause memory allocations though unused.
   // Make creation optional but do not incur
   // unique_ptr additional allocation
+  GuardInserter* guard_inserter_;
   using
   MemPostInfoMap = std::map<MemTable*, MemTablePostProcessInfo>;
   using
@@ -897,6 +989,7 @@ public:
        concurrent_memtable_writes_(concurrent_memtable_writes),
        post_info_created_(false),
        has_valid_writes_(has_valid_writes),
+       guard_inserter_(new GuardInserter),
        rebuilding_trx_(nullptr) {
    assert(cf_mems_);
   }
@@ -969,103 +1062,13 @@ public:
   /* Changing memtable inserter so that it inserts guards into a version in
    * addition to adding keys to the memtable.
    */
-  class GuardInserter : public WriteBatch::Handler {
-      public:
-          GuardInserter() : sequence_(), cf_mems_(), version_() {
-            new_batch = NULL;
-            version_ = NULL;
-            auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-            auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
-            for (int i = 0; i < cfd->ioptions()->num_levels; i++)
-              num_guards[i] = 0;
-          }
-      SequenceNumber sequence_;
-      WriteBatch* new_batch;
-      ColumnFamilyMemTables* cf_mems_;
-      Version* version_;
-      virtual void Put(const Slice& key, const Slice& value) {
-        unsigned num_bits = top_level_bits;
-        auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-        auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
-
-        // Go through each level, starting from the top and checking if it
-        // is a guard on that level.
-        for (unsigned i = 0; i < static_cast<unsigned>(cfd->ioptions()->num_levels); i++) {
-          if (debug_IsGuardKey(i, key, top_level_bits)) {
-            for (unsigned j = i; j < static_cast<unsigned>(cfd->ioptions()->num_levels); j++) {
-              new_batch->PutGuard(key, j);
-              num_guards[j]++;
-            }
-            break;
-          }
-          // Check next level
-          num_bits -= bit_decrement;
-        }
-      }
-      virtual bool IsGuardKey(unsigned level, const Slice& key) {
-        void* input = (void*) key.data();
-        unsigned num_bits = top_level_bits - (level * bit_decrement);
-        const unsigned int murmur_seed = 42;
-        unsigned int hash_result;
-        size_t size = key.size();
-        MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
-
-        auto mask = bit_mask(num_bits);
-        if ((hash_result & mask) == mask) {
-          return true;
-        }
-        return false;
-      }
-      virtual bool debug_IsGuardKey(unsigned level, const Slice& key, unsigned
-      num_bits) {
-        void* input = (void*) key.data();
-        const unsigned int murmur_seed = 42;
-        unsigned int hash_result;
-        size_t size = key.size();
-        MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
-
-        auto mask = bit_mask(num_bits);
-        if ((hash_result & mask) == mask) {
-          return true;
-        }
-        return false;
-      }
-
-      virtual void HandleGuard(const Slice& key, unsigned level) {
-        if (!version_) return;
-        auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-        auto* cfd = reinterpret_cast< ColumnFamilyHandleImpl* >(cf_handle)->cfd();
-        assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
-        GuardMetaData* g = new GuardMetaData();
-        InternalKey ikey(key, sequence_, kTypeValue);
-        g->guard_key = ikey;
-        g->level = level;
-        g->number_segments = 0;
-        g->refs = 1;
-        version_->AddGuard(g, level);
-        sequence_++;
-      }
-
-      unsigned bit_mask(unsigned num_bits) {
-        assert(num_bits > 0 && num_bits < 32);
-        return (1 << num_bits) - 1;
-      }
-
-      private:
-        const static unsigned top_level_bits = 27;
-        const static int bit_decrement = 2;
-
-        std::vector<int> num_guards;
-
-      GuardInserter(const GuardInserter&);
-      GuardInserter& operator = (const GuardInserter&);
-  };
-
 
   virtual Status PutCF(uint32_t column_family_id, const Slice& key,
                        const Slice& value) override {
     if (rebuilding_trx_ != nullptr) {
       WriteBatchInternal::Put(rebuilding_trx_, column_family_id, key, value);
+      guard_inserter_->HandleGuard(key, 0);
+//      guard_inserter_->Put(key, value);
       return Status::OK();
     }
 
