@@ -63,7 +63,10 @@ class VersionBuilder::Rep {
   // kLevel0 -- NewestFirstBySeqNo
   // kLevelNon0 -- BySmallestKey
   struct FileComparator {
-    enum SortMethod { kLevel0 = 0, kLevelNon0 = 1, } sort_method;
+    enum SortMethod {
+      kLevel0 = 0,
+      kLevelNon0 = 1,
+    } sort_method;
     const InternalKeyComparator* internal_comparator;
 
     bool operator()(FileMetaData* f1, FileMetaData* f2) const {
@@ -168,15 +171,17 @@ class VersionBuilder::Rep {
             SequenceNumber external_file_seqno = f2->smallest_seqno;
             if (!(external_file_seqno < f1->largest_seqno ||
                   external_file_seqno == 0)) {
-              fprintf(stderr, "L0 file with seqno %" PRIu64 " %" PRIu64
-                              " vs. file with global_seqno %" PRIu64 "\n",
+              fprintf(stderr,
+                      "L0 file with seqno %" PRIu64 " %" PRIu64
+                      " vs. file with global_seqno %" PRIu64 "\n",
                       f1->smallest_seqno, f1->largest_seqno,
                       external_file_seqno);
               abort();
             }
           } else if (f1->smallest_seqno <= f2->smallest_seqno) {
-            fprintf(stderr, "L0 files seqno %" PRIu64 " %" PRIu64
-                            " vs. %" PRIu64 " %" PRIu64 "\n",
+            fprintf(stderr,
+                    "L0 files seqno %" PRIu64 " %" PRIu64 " vs. %" PRIu64
+                    " %" PRIu64 "\n",
                     f1->smallest_seqno, f1->largest_seqno, f2->smallest_seqno,
                     f2->largest_seqno);
             abort();
@@ -312,31 +317,23 @@ class VersionBuilder::Rep {
     }
 
     // Add guards
-    const auto& new_guards = edit->GetNewGuards();
-    const auto& complete_guards = edit->GetCompleteGuards();
-    for (std::vector<std::vector<GuardMetaData*>>::size_type index = 0; index < new_guards.size(); index++) {
-      int level = (int)index;
-      const auto& new_guards_in_level = new_guards[level];
-      for (const auto& guard_meta_data : new_guards_in_level) {
-        assert(guard_meta_data.level < num_levels_);
-        assert(guard_meta_data.level == level);
-        // Assume that GuardMetaData is stored in VersionEdit for each level
-        GuardMetaData* g = new GuardMetaData(guard_meta_data);
-        g->refs = 1;
-        new_guards_[level].push_back(g);
-      }
+    // NOTE: VersionEdit currently stores the complete set of guards, so
+    // clear new_guards and complete_guards first
+    const auto& new_guards_from_edit = edit->GetNewGuards();
+    const auto& complete_guards_from_edit = edit->GetCompleteGuards();
+    new_guards_.clear();
+    complete_guards_.clear();
+    for (const auto& new_guard : new_guards_from_edit) {
+      assert(new_guard.level < num_levels_);
+      GuardMetaData* g = new GuardMetaData(new_guard);
+      g->refs = 1;
+      new_guards_[new_guard.level].push_back(g);
     }
-    for (std::vector<std::vector<GuardMetaData*>>::size_type index = 0; index < complete_guards.size(); index++) {
-      int level = (int)index;
-      const auto& complete_guards_in_level = complete_guards[level];
-      for (const auto& guard_meta_data : complete_guards_in_level) {
-        assert(guard_meta_data.level < num_levels_);
-        assert(guard_meta_data.level == level);
-        // Assume that GuardMetaData is stored in VersionEdit for each level
-        GuardMetaData* g = new GuardMetaData(guard_meta_data);
-        g->refs = 1;
-        complete_guards_[level].push_back(g);
-      }
+    for (const auto& complete_guard : complete_guards_from_edit) {
+      assert(complete_guard.level < num_levels_);
+      GuardMetaData* g = new GuardMetaData(complete_guard);
+      g->refs = 1;
+      complete_guards_[complete_guard.level].push_back(g);
     }
   }
 
@@ -393,7 +390,6 @@ class VersionBuilder::Rep {
     }
 
     CheckConsistency(vstorage);
-
 
     vstorage->complete_guards_ = complete_guards_;
     vstorage->new_guards_ = new_guards_;

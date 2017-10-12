@@ -39,6 +39,8 @@ enum Tag {
   kColumnFamilyAdd = 201,
   kColumnFamilyDrop = 202,
   kMaxColumnFamily = 203,
+  kNewGuard = 204,
+  kCompleteGuard = 205,
 };
 
 enum CustomTag {
@@ -185,6 +187,22 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
   if (is_column_family_drop_) {
     PutVarint32(dst, kColumnFamilyDrop);
   }
+
+  // Encode complete guards
+  for (const GuardMetaData& complete_guard : complete_guards_) {
+    PutVarint32(dst, kCompleteGuard);
+    PutVarint32(dst, complete_guard.level);
+    PutLengthPrefixedSlice(dst, complete_guard.guard_key.Encode());
+    // TODO: how do we encode files inside guards??
+  }
+
+  // Encode new guards
+  for (const GuardMetaData& new_guard : new_guards_) {
+    PutVarint32(dst, kNewGuard);
+    PutVarint32(dst, new_guard.level);
+    PutLengthPrefixedSlice(dst, new_guard.guard_key.Encode());
+    // TODO: how do we encode files inside guards??
+  }
   return true;
 }
 
@@ -279,6 +297,7 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
   FileMetaData f;
   Slice str;
   InternalKey key;
+  GuardMetaData guard;
 
   while (msg == nullptr && GetVarint32(&input, &tag)) {
     switch (tag) {
@@ -332,8 +351,7 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
         break;
 
       case kCompactPointer:
-        if (GetLevel(&input, &level, &msg) &&
-            GetInternalKey(&input, &key)) {
+        if (GetLevel(&input, &level, &msg) && GetInternalKey(&input, &key)) {
           // we don't use compact pointers anymore,
           // but we should not fail if they are still
           // in manifest
@@ -439,6 +457,26 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
         is_column_family_drop_ = true;
         break;
 
+      case kCompleteGuard: {
+        if (GetLevel(&input, &guard.level, &msg) &&
+            GetInternalKey(&input, &guard.guard_key)) {
+          complete_guards_.push_back(guard);
+        } else {
+          msg = "complete-guard entry";
+        }
+        break;
+      }
+
+      case kNewGuard: {
+        if (GetLevel(&input, &guard.level, &msg) &&
+            GetInternalKey(&input, &guard.guard_key)) {
+          new_guards_.push_back(guard);
+        } else {
+          msg = "new-guard entry";
+        }
+        break;
+      }
+
       default:
         msg = "unknown tag";
         break;
@@ -480,8 +518,7 @@ std::string VersionEdit::DebugString(bool hex_key) const {
     AppendNumberTo(&r, last_sequence_);
   }
   for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-       iter != deleted_files_.end();
-       ++iter) {
+       iter != deleted_files_.end(); ++iter) {
     r.append("\n  DeleteFile: ");
     AppendNumberTo(&r, iter->first);
     r.append(" ");
@@ -542,8 +579,7 @@ std::string VersionEdit::DebugJSON(int edit_num, bool hex_key) const {
     jw.StartArray();
 
     for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-         iter != deleted_files_.end();
-         ++iter) {
+         iter != deleted_files_.end(); ++iter) {
       jw.StartArrayedObject();
       jw << "Level" << iter->first;
       jw << "FileNumber" << iter->second;

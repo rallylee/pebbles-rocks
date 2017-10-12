@@ -10,11 +10,11 @@
 #pragma once
 #include <algorithm>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include "rocksdb/cache.h"
 #include "db/dbformat.h"
+#include "rocksdb/cache.h"
 #include "util/arena.h"
 #include "util/autovector.h"
 
@@ -57,8 +57,8 @@ struct FileDescriptor {
     return packed_number_and_path_id & kFileNumberMask;
   }
   uint32_t GetPathId() const {
-    return static_cast<uint32_t>(
-        packed_number_and_path_id / (kFileNumberMask + 1));
+    return static_cast<uint32_t>(packed_number_and_path_id /
+                                 (kFileNumberMask + 1));
   }
   uint64_t GetFileSize() const { return file_size; }
 };
@@ -77,15 +77,15 @@ struct FileSampledStats {
 
 struct FileMetaData {
   FileDescriptor fd;
-  InternalKey smallest;            // Smallest internal key served by table
-  InternalKey largest;             // Largest internal key served by table
-  SequenceNumber smallest_seqno;   // The smallest seqno in this file
-  SequenceNumber largest_seqno;    // The largest seqno in this file
+  InternalKey smallest;           // Smallest internal key served by table
+  InternalKey largest;            // Largest internal key served by table
+  SequenceNumber smallest_seqno;  // The smallest seqno in this file
+  SequenceNumber largest_seqno;   // The largest seqno in this file
   GuardMetaData* guard;
-  int allowed_seeks;          // Seeks allowed until compaction
+  int allowed_seeks;  // Seeks allowed until compaction
   uint64_t number;
-  uint64_t file_size;         // File size in bytes
-// Needs to be disposed when refs becomes 0.
+  uint64_t file_size;  // File size in bytes
+                       // Needs to be disposed when refs becomes 0.
   Cache::Handle* table_reader_handle;
 
   FileSampledStats stats;
@@ -98,16 +98,16 @@ struct FileMetaData {
   uint64_t compensated_file_size;
   // These values can mutate, but they can only be read or written from
   // single-threaded LogAndApply thread
-  uint64_t num_entries;            // the number of entries.
-  uint64_t num_deletions;          // the number of deletion entries.
-  uint64_t raw_key_size;           // total uncompressed key size.
-  uint64_t raw_value_size;         // total uncompressed value size.
+  uint64_t num_entries;     // the number of entries.
+  uint64_t num_deletions;   // the number of deletion entries.
+  uint64_t raw_key_size;    // total uncompressed key size.
+  uint64_t raw_value_size;  // total uncompressed value size.
 
   int refs;  // Reference count
 
-  bool being_compacted;        // Is this file undergoing compaction?
-  bool init_stats_from_file;   // true if the data-entry stats of this file
-                               // has initialized from file.
+  bool being_compacted;       // Is this file undergoing compaction?
+  bool init_stats_from_file;  // true if the data-entry stats of this file
+                              // has initialized from file.
 
   bool marked_for_compaction;  // True if client asked us nicely to compact this
                                // file.
@@ -153,8 +153,15 @@ struct GuardMetaData {
   std::vector<uint64_t> files;
   std::vector<FileMetaData*> file_metas;
 
-GuardMetaData() : refs(0), level(-1), number_segments(0), guard_key(), smallest(), largest()
- { files.clear(); }
+  GuardMetaData()
+      : refs(0),
+        level(-1),
+        number_segments(0),
+        guard_key(),
+        smallest(),
+        largest() {
+    files.clear();
+  }
 };
 
 // A compressed copy of file meta data that just contain minimum data needed
@@ -163,14 +170,10 @@ GuardMetaData() : refs(0), level(-1), number_segments(0), guard_key(), smallest(
 struct FdWithKeyRange {
   FileDescriptor fd;
   FileMetaData* file_metadata;  // Point to all metadata
-  Slice smallest_key;    // slice that contain smallest key
-  Slice largest_key;     // slice that contain largest key
+  Slice smallest_key;           // slice that contain smallest key
+  Slice largest_key;            // slice that contain largest key
 
-  FdWithKeyRange()
-      : fd(),
-        smallest_key(),
-        largest_key() {
-  }
+  FdWithKeyRange() : fd(), smallest_key(), largest_key() {}
 
   FdWithKeyRange(FileDescriptor _fd, Slice _smallest_key, Slice _largest_key,
                  FileMetaData* _file_metadata)
@@ -194,7 +197,7 @@ struct LevelFilesBrief {
 class VersionEdit {
  public:
   VersionEdit() { Clear(); }
-  ~VersionEdit() { }
+  ~VersionEdit() {}
 
   void Clear();
 
@@ -247,38 +250,16 @@ class VersionEdit {
     new_files_.emplace_back(level, f);
   }
 
-  void AddSentinelFile(int level, int allowed_seeks, uint64_t file_size, GuardMetaData* g, InternalKey largest, InternalKey smallest, uint64_t number, int refs) {
-    FileMetaData meta;
-    meta.allowed_seeks = allowed_seeks;
-    meta.file_size = file_size;
-    meta.guard = g;
-    meta.largest = largest;
-    meta.smallest = smallest;
-    meta.number = number;
-    meta.refs = refs;
-    sentinel_files_[level].push_back(meta);
-  }
+  void AddNewGuard(GuardMetaData* g) { new_guards_.emplace_back(*g); }
 
-  void AddSentinelFileNo(int level, uint64_t number) {
-    sentinel_file_nos_[level].push_back(number);
-  }
-
-  void AddNewGuard(int level, GuardMetaData* g) {
-    GuardMetaData new_g(*g);
-    new_guards_[level].push_back(new_g);
-  }
-
-  void AddCompleteGuard(int level, GuardMetaData* g) {
-    GuardMetaData new_g(*g);
-    complete_guards_[level].push_back(new_g);
-  }
+  void AddCompleteGuard(GuardMetaData* g) { complete_guards_.emplace_back(*g); }
 
   // Delete the specified "file" from the specified "level".
   void DeleteFile(int level, uint64_t file) {
     deleted_files_.insert({level, file});
   }
 
-    // Number of edits
+  // Number of edits
   size_t NumEntries() { return new_files_.size() + deleted_files_.size(); }
 
   bool IsColumnFamilyManipulation() {
@@ -322,11 +303,9 @@ class VersionEdit {
   std::string DebugString(bool hex_key = false) const;
   std::string DebugJSON(int edit_num, bool hex_key = false) const;
 
-  const std::vector<std::vector<GuardMetaData>>& GetNewGuards() {
-    return new_guards_;
-  }
+  const std::vector<GuardMetaData>& GetNewGuards() { return new_guards_; }
 
-  const std::vector<std::vector<GuardMetaData>>& GetCompleteGuards() {
+  const std::vector<GuardMetaData>& GetCompleteGuards() {
     return complete_guards_;
   }
 
@@ -364,8 +343,8 @@ class VersionEdit {
   std::string column_family_name_;
   std::vector<std::vector<FileMetaData>> sentinel_files_;
   std::vector<std::vector<uint64_t>> sentinel_file_nos_;
-  std::vector<std::vector<GuardMetaData>> new_guards_;
-  std::vector<std::vector<GuardMetaData>> complete_guards_;
+  std::vector<GuardMetaData> new_guards_;
+  std::vector<GuardMetaData> complete_guards_;
 };
 
 }  // namespace rocksdb
