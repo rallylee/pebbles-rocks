@@ -1002,8 +1002,8 @@ class MemTableInserter : public WriteBatch::Handler {
   virtual void HandleGuard(uint32_t column_family_id, const Slice& key, unsigned level) {
     Status s;
     SeekToColumnFamily(column_family_id, &s);
-    if (!s.ok()) {
-      assert(false); // ????
+    if (cf_mems_->current() == nullptr) {
+      return; // what should you do if the column family doesn't exist?
     }
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();

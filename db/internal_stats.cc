@@ -243,9 +243,7 @@ static const std::string num_running_flushes = "num-running-flushes";
 static const std::string actual_delayed_write_rate =
     "actual-delayed-write-rate";
 static const std::string is_write_stopped = "is-write-stopped";
-static const std::string num_guards_at_level_prefix = "num-guards-at-level";
 
-const std::string DB::Properties::kNumGuardsAtLevelPrefix = rocksdb_prefix + num_guards_at_level_prefix;
 const std::string DB::Properties::kNumFilesAtLevelPrefix =
                       rocksdb_prefix + num_files_at_level_prefix;
 const std::string DB::Properties::kCompressionRatioAtLevelPrefix =
@@ -323,8 +321,6 @@ const std::unordered_map<std::string, DBPropertyInfo>
     InternalStats::ppt_name_to_info = {
         {DB::Properties::kNumFilesAtLevelPrefix,
          {false, &InternalStats::HandleNumFilesAtLevel, nullptr, nullptr}},
-        {DB::Properties::kNumGuardsAtLevelPrefix,
-         {false, &InternalStats::HandleNumGuardsAtLevel, nullptr, nullptr}},
         {DB::Properties::kCompressionRatioAtLevelPrefix,
          {false, &InternalStats::HandleCompressionRatioAtLevelPrefix, nullptr,
           nullptr}},
@@ -465,7 +461,7 @@ bool InternalStats::GetIntPropertyOutOfMutex(
 
 bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
   uint64_t level;
-  const auto* vstorage = cfd_->dummy_versions()->storage_info();
+  const auto* vstorage = cfd_->current()->storage_info();
   bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
   if (!ok || static_cast<int>(level) >= number_levels_) {
     return false;
@@ -476,34 +472,6 @@ bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
     *value = buf;
     return true;
   }
-}
-
-bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
-    uint64_t level;
-    const auto* vstorage = cfd_->current()->storage_info();
-    bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
-    if(vstorage->complete_guards_.empty()) {
-        char buf[100];
-        //snprintf(buf, sizeof(buf), "%d", static_cast<int>(45));
-        *value = buf;
-        return true;
-    }
-    if (!ok || static_cast<int>(level) >= number_levels_) {
-        return false;
-    } else {
-        char buf[100];
-        std::vector<GuardMetaData*> complete_guards;
-        const auto& ref = vstorage->complete_guards_.find(static_cast<int>(level));
-        if (ref != vstorage->complete_guards_.end()) {
-          //snprintf(buf, sizeof(buf), "%d", static_cast<int>(5));
-          complete_guards = ref->second;
-        }
-        snprintf(buf, sizeof(buf), "%d",
-                 static_cast<int>(complete_guards.size()));
-        //snprintf(buf, sizeof(buf), "%d", static_cast<int>(cfd_->current()->GetVersionNumber()));
-        *value = buf;
-        return true;
-    }
 }
 
 bool InternalStats::HandleCompressionRatioAtLevelPrefix(std::string* value,

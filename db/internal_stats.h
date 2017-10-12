@@ -477,7 +477,6 @@ class InternalStats {
   bool HandleActualDelayedWriteRate(uint64_t* value, DBImpl* db,
                                     Version* version);
   bool HandleIsWriteStopped(uint64_t* value, DBImpl* db, Version* version);
-  bool HandleNumGuardsAtLevel(std::string *value, Slice suffix);
 
   // Total number of background errors encountered. Every time a flush task
   // or compaction task fails, this counter is incremented. The failure can
@@ -490,8 +489,6 @@ class InternalStats {
   Env* env_;
   ColumnFamilyData* cfd_;
   uint64_t started_at_;
-
-
 };
 
 #else
