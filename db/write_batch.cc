@@ -98,7 +98,7 @@ class GuardInserter : public WriteBatch::Handler {
     // is a guard on that level.
     unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
     for (unsigned i = 0; i < num_levels; i++) {
-      auto& guards_vec = num_guards.emplace(column_family_id, num_levels).first /* first in pair is iterator */ -> second /* second in iterator is the actual std::vector */;
+      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first /* first in pair is iterator */ -> second /* second in iterator is the actual std::vector */;
       if (debug_IsGuardKey(0, key, top_level_bits)) {
         for (unsigned j = i; j < num_levels; j++) {
           new_batch_->PutGuard(cf_handle, key, j);
