@@ -566,6 +566,13 @@ class Version {
     return total;
   }
 
+  int TotalGuardsAtLevel(int level) {
+    for (unsigned i = 0; i < storage_info()->new_guards_[level].size(); i++) {
+      printf("Guard at level %d: %s\n", level, storage_info()->new_guards_[level][i]->guard_key.user_key().data_);
+    }
+    return storage_info()->new_guards_[level].size();
+  }
+
   void AddGuard(GuardMetaData* g, int level);
 
  private:

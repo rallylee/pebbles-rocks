@@ -190,6 +190,7 @@ std::pair<Slice, Slice> GetPropertyNameAndArg(const Slice& property) {
 static const std::string rocksdb_prefix = "rocksdb.";
 
 static const std::string num_files_at_level_prefix = "num-files-at-level";
+static const std::string num_guards_at_level_prefix = "num-guards-at-level";
 static const std::string compression_ratio_at_level_prefix =
     "compression-ratio-at-level";
 static const std::string allstats = "stats";
@@ -246,6 +247,8 @@ static const std::string is_write_stopped = "is-write-stopped";
 
 const std::string DB::Properties::kNumFilesAtLevelPrefix =
                       rocksdb_prefix + num_files_at_level_prefix;
+const std::string DB::Properties::kNumGuardsAtLevelPrefix =
+        rocksdb_prefix + num_guards_at_level_prefix;
 const std::string DB::Properties::kCompressionRatioAtLevelPrefix =
                       rocksdb_prefix + compression_ratio_at_level_prefix;
 const std::string DB::Properties::kStats = rocksdb_prefix + allstats;
@@ -319,6 +322,8 @@ const std::string DB::Properties::kIsWriteStopped =
 
 const std::unordered_map<std::string, DBPropertyInfo>
     InternalStats::ppt_name_to_info = {
+        {DB::Properties::kNumGuardsAtLevelPrefix,
+         {false, &InternalStats::HandleNumGuardsAtLevel, nullptr, nullptr}},
         {DB::Properties::kNumFilesAtLevelPrefix,
          {false, &InternalStats::HandleNumFilesAtLevel, nullptr, nullptr}},
         {DB::Properties::kCompressionRatioAtLevelPrefix,
@@ -469,6 +474,27 @@ bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
     char buf[100];
     snprintf(buf, sizeof(buf), "%d",
              vstorage->NumLevelFiles(static_cast<int>(level)));
+    *value = buf;
+    return true;
+  }
+}
+
+bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
+  uint64_t level;
+  const auto* vstorage = cfd_->current()->storage_info();
+  bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
+  if (!ok || static_cast<int>(level) >= number_levels_) {
+    return false;
+  } else {
+    char buf[100];
+//    std::vector<GuardMetaData*> complete_guards;
+//
+//    const auto& ref = vstorage->complete_guards_.find(static_cast<int>(level));
+//    if (ref != vstorage->complete_guards_.end()) {
+//      complete_guards = ref->second;
+//    }
+    snprintf(buf, sizeof(buf), "%d",
+             static_cast<int>(cfd_->current()->TotalGuardsAtLevel(level)));
     *value = buf;
     return true;
   }
