@@ -481,20 +481,13 @@ bool InternalStats::HandleNumFilesAtLevel(std::string* value, Slice suffix) {
 
 bool InternalStats::HandleNumGuardsAtLevel(std::string* value, Slice suffix) {
   uint64_t level;
-  const auto* vstorage = cfd_->current()->storage_info();
   bool ok = ConsumeDecimalNumber(&suffix, &level) && suffix.empty();
   if (!ok || static_cast<int>(level) >= number_levels_) {
     return false;
   } else {
     char buf[100];
-//    std::vector<GuardMetaData*> complete_guards;
-//
-//    const auto& ref = vstorage->complete_guards_.find(static_cast<int>(level));
-//    if (ref != vstorage->complete_guards_.end()) {
-//      complete_guards = ref->second;
-//    }
     snprintf(buf, sizeof(buf), "%d",
-             static_cast<int>(cfd_->current()->TotalGuardsAtLevel(level)));
+             cfd_->current()->TotalGuardsAtLevel(level));
     *value = buf;
     return true;
   }
