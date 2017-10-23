@@ -86,7 +86,7 @@ class GuardInserter : public WriteBatch::Handler {
 
 
 
-  virtual Status PutCF(uint32_t column_family_id, const Slice& key, const Slice& value) {
+  /*virtual Status PutCF(uint32_t column_family_id, const Slice& key, const Slice& value) {
     unsigned num_bits = top_level_bits;
     if (!cf_mems_->Seek(column_family_id)) {
       return Status::NotFound("failed to seek to column family id");
@@ -98,10 +98,10 @@ class GuardInserter : public WriteBatch::Handler {
     // is a guard on that level.
     unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
     for (unsigned i = 0; i < num_levels; i++) {
-      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first /* first in pair is iterator */ -> second /* second in iterator is the actual std::vector */;
-      if (debug_IsGuardKey(0, key, top_level_bits)) {
+      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
+      if (debug_IsGuardKey(i, key, 0)) {
         for (unsigned j = i; j < num_levels; j++) {
-          new_batch_->PutGuard(cf_handle, key, j);
+          //new_batch_->PutGuard(cf_handle, key, j);
           guards_vec[j]++;
         }
         break;
@@ -110,21 +110,23 @@ class GuardInserter : public WriteBatch::Handler {
       num_bits -= bit_decrement;
     }
     return Status::OK();
-  }
+  }*/
 
-  virtual bool IsGuardKey(unsigned level, const Slice& key) {
+  /*virtual bool IsGuardKey(unsigned level, const Slice& key) {
     void* input = (void*)key.data();
     unsigned num_bits = top_level_bits - (level * bit_decrement);
     const unsigned int murmur_seed = 42;
-    unsigned int hash_result;
     size_t size = key.size();
-    // MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
+    uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
+    //printf("key: %s\n", (char*) input);
+    //printf("hash_result: %u\n", (unsigned int) hash_result);
 
-    // auto mask = bit_mask(num_bits);
-    // if ((hash_result & mask) == mask) {
-    return true;
-    //}
-    // return false;
+    auto mask = bit_mask(num_bits);
+    //printf("mask: %d\n", (int) mask);
+    if ((hash_result & mask) == mask) {
+      return true;
+    }
+    return false;
   }
   virtual bool debug_IsGuardKey(unsigned level, const Slice& key,
                                 unsigned num_bits) {
@@ -144,7 +146,7 @@ class GuardInserter : public WriteBatch::Handler {
   unsigned bit_mask(unsigned num_bits) {
     assert(num_bits > 0 && num_bits < 32);
     return (1 << num_bits) - 1;
-  }
+  }*/
 
  private:
   const static unsigned top_level_bits = 27;
@@ -535,11 +537,11 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeNoop:
         break;
-      case kTypeGuard:
+      /*case kTypeGuard:
         assert(content_flags_.load(std::memory_order_relaxed) & (ContentFlags::DEFERRED | ContentFlags::HAS_PUT_GUARD));
         handler->HandleGuard(column_family, key, level);
         found++;
-        break;
+        break;*/
       default:
         return Status::Corruption("unknown WriteBatch tag");
     }
@@ -612,7 +614,7 @@ Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
                                  value);
 }
 
-  Status WriteBatch::PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) {
+Status WriteBatch::PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) {
     return WriteBatchInternal::PutGuard(this, GetColumnFamilyID(column_family), key, level);
 }
 
@@ -1016,7 +1018,7 @@ class MemTableInserter : public WriteBatch::Handler {
     g->number_segments = 0;
     g->refs = 1;
     version->AddGuard(g, level);
-    sequence_++;
+    //sequence_++;
   }
 
   void PostProcess() {
@@ -1078,6 +1080,23 @@ class MemTableInserter : public WriteBatch::Handler {
                        const Slice& value) override {
     if (rebuilding_trx_ != nullptr) {
       WriteBatchInternal::Put(rebuilding_trx_, column_family_id, key, value);
+      auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+
+      unsigned num_bits = top_level_bits;
+      auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
+
+      unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
+      for(unsigned i = 0;i < num_levels; i++) {
+        auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
+        if(IsGuardKey(i, key)) {
+          for(unsigned j = i; j < num_levels; j++) {
+            HandleGuard(column_family_id, key, j);
+            guards_vec[j]++;
+          }
+          break;
+        }
+        num_bits -= bit_decrement;
+      }
       return Status::OK();
     }
 
@@ -1132,7 +1151,26 @@ class MemTableInserter : public WriteBatch::Handler {
           mem->Add(sequence_, kTypeValue, key, Slice(merged_value));
           RecordTick(moptions->statistics, NUMBER_KEYS_WRITTEN);
         }
+
+
       }
+    }
+    auto cf_handle = cf_mems_->GetColumnFamilyHandle();
+
+    unsigned num_bits = top_level_bits;
+    auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
+
+    unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
+    for(unsigned i = 0;i < num_levels; i++) {
+      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
+      if(IsGuardKey(i, key)) {
+        for(unsigned j = i; j < num_levels; j++) {
+          HandleGuard(column_family_id, key, j);
+          guards_vec[j]++;
+        }
+        break;
+      }
+      num_bits -= bit_decrement;
     }
     // Since all Puts are logged in trasaction logs (if enabled), always bump
     // sequence number. Even if the update eventually fails and does not result
@@ -1141,6 +1179,24 @@ class MemTableInserter : public WriteBatch::Handler {
     CheckMemtableFull();
     return Status::OK();
   }
+
+    unsigned bit_mask(unsigned num_bits) {
+      assert(num_bits > 0 && num_bits < 32);
+      return (1 << num_bits) - 1;
+    }
+
+    virtual bool IsGuardKey(unsigned level, const Slice& key) {
+      void* input = (void*)key.data();
+      unsigned num_bits = top_level_bits - (level * bit_decrement);
+      const unsigned int murmur_seed = 42;
+      size_t size = key.size();
+      uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
+      auto mask = bit_mask(num_bits);
+      if ((hash_result & mask) == mask) {
+        return true;
+      }
+      return false;
+    }
 
   Status DeleteImpl(uint32_t column_family_id, const Slice& key,
                     const Slice& value, ValueType delete_type) {
@@ -1420,6 +1476,10 @@ class MemTableInserter : public WriteBatch::Handler {
     }
     return &GetPostMap()[mem];
   }
+
+    const static unsigned top_level_bits = 10;
+    const static int bit_decrement = 1;
+    std::unordered_map<uint32_t, std::vector<int>> num_guards;
 };
 
 // This function can only be called in these conditions:
