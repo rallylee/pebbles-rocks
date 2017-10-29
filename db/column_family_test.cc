@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <cstdlib>
 
 #include "db/db_impl.h"
 #include "db/db_test_util.h"
@@ -827,7 +828,28 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
             ASSERT_OK(Put(0, key, val));
             //printf("----------New key inserted----------\n");
             if ((i + 1) % 100 == 0) {
-              printf("After %d keys added\n:", i + 1);
+                printf("After %d keys added:\n", i + 1);
+                for(int j = 0; j < dbfull()->NumberLevels(); j++) {
+                    auto result = NumGuardsAtLevel(j, 0);
+                    printf("\t%d guards at level %d\n", result, j);
+                }
+            }
+        }
+        Close();
+    }
+
+    TEST_F(ColumnFamilyTest, PutWithRandomGuards) {
+        Open();
+        CreateColumnFamiliesAndReopen({"one", "two"});
+        srand(time(NULL));
+        for (int i = 0; i < 2000; i++) {
+            //std::string key = makeString(i);
+            std::string key = std::to_string(rand());
+            std::string val = std::to_string(i);
+            ASSERT_OK(Put(0, key, val));
+            //printf("----------New key inserted----------\n");
+            if ((i + 1) % 100 == 0) {
+              printf("After %d keys added:\n", i + 1);
               for(int j = 0; j < dbfull()->NumberLevels(); j++) {
                 auto result = NumGuardsAtLevel(j, 0);
                 printf("\t%d guards at level %d\n", result, j);
@@ -835,6 +857,24 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
             }
         }
         Close();
+    }
+
+    TEST_F(ColumnFamilyTest, PutWithRandomGuardsAndClose) {
+      Open();
+      CreateColumnFamiliesAndReopen({"one", "two"});
+      for (int i = 0; i < 2000; i++) {
+        //std::string key = makeString(i);
+        std::string key = std::to_string(i);
+        std::string val = std::to_string(i * 10);
+        ASSERT_OK(Put(0, key, val));
+        //printf("----------New key inserted----------\n");
+      }
+      Reopen();
+      ASSERT_EQ("10000", Get(0, "1000"));
+      for(int j = 0; j < dbfull()->NumberLevels(); j++) {
+        auto result = NumGuardsAtLevel(j, 0);
+        printf("\t%d guards at level %d\n", result, j);
+      }
     }
 
 TEST_F(ColumnFamilyTest, IgnoreRecoveredLog) {
