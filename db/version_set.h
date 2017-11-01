@@ -354,8 +354,6 @@ class VersionStorageInfo {
 
   bool force_consistency_checks() const { return force_consistency_checks_; }
 
-  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
-
  private:
   const InternalKeyComparator* internal_comparator_;
   const Comparator* user_comparator_;
@@ -444,6 +442,8 @@ class VersionStorageInfo {
 
   // List of guards for each level
   std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
+
+  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
 
   friend class Version;
   friend class VersionSet;

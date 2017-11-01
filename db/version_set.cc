@@ -779,6 +779,8 @@ VersionStorageInfo::VersionStorageInfo(
     current_num_non_deletions_ = ref_vstorage->current_num_non_deletions_;
     current_num_deletions_ = ref_vstorage->current_num_deletions_;
     current_num_samples_ = ref_vstorage->current_num_samples_;
+    new_guards_ = ref_vstorage->new_guards_;
+    complete_guards_ = ref_vstorage->complete_guards_;
   }
 }
 

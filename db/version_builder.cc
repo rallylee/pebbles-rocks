@@ -387,12 +387,12 @@ class VersionBuilder::Rep {
       for (; base_iter != base_end; ++base_iter) {
         MaybeAddFile(vstorage, level, *base_iter);
       }
+
+      vstorage->complete_guards_[level].insert(std::end(vstorage->complete_guards_[level]), std::begin(complete_guards_[level]), std::end(complete_guards_[level]));
+      vstorage->new_guards_[level].insert(std::end(vstorage->new_guards_[level]), std::begin(new_guards_[level]), std::end(new_guards_[level]));
     }
 
     CheckConsistency(vstorage);
-
-    vstorage->complete_guards_ = complete_guards_;
-    vstorage->new_guards_ = new_guards_;
   }
 
   void LoadTableHandlers(InternalStats* internal_stats, int max_threads,
