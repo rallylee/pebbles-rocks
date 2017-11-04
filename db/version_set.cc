@@ -13,6 +13,8 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
+#include <iostream>
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <algorithm>
@@ -2090,6 +2092,7 @@ uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
 
 void Version::AddGuard(GuardMetaData* g, int level) {
   assert(level >= 0 && level < cfd()->NumberLevels());
+  std::cout << "Adding guard!" << std::endl;
   storage_info()->new_guards_[level].push_back(g);
 }
 

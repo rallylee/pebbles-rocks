@@ -354,6 +354,14 @@ class VersionStorageInfo {
 
   bool force_consistency_checks() const { return force_consistency_checks_; }
 
+
+  // TODO: match style
+
+  // List of guards for each level
+  std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
+
+  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
+
  private:
   const InternalKeyComparator* internal_comparator_;
   const Comparator* user_comparator_;
@@ -439,11 +447,6 @@ class VersionStorageInfo {
   // If set to true, we will run consistency checks even if RocksDB
   // is compiled in release mode
   bool force_consistency_checks_;
-
-  // List of guards for each level
-  std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
-
-  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
 
   friend class Version;
   friend class VersionSet;
