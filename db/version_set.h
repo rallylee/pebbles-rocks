@@ -362,6 +362,8 @@ class VersionStorageInfo {
 
   std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
 
+  std::unordered_map<int, GuardMetaData*> sentinels_;
+
  private:
   const InternalKeyComparator* internal_comparator_;
   const Comparator* user_comparator_;

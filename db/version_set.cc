@@ -783,6 +783,14 @@ VersionStorageInfo::VersionStorageInfo(
     current_num_samples_ = ref_vstorage->current_num_samples_;
     new_guards_ = ref_vstorage->new_guards_;
     complete_guards_ = ref_vstorage->complete_guards_;
+    sentinels_ = ref_vstorage->sentinels_;
+  } else {
+    for (int i = 0; i < num_levels_; i++) {
+      GuardMetaData* g = new GuardMetaData;
+      g->refs = 1;
+      g->level = i;
+      sentinels_[i] = g;
+    }
   }
 }
 
@@ -3271,6 +3279,8 @@ Status VersionSet::WriteSnapshot(log::Writer* log) {
              cfd->current()->storage_info()->complete_guards_[level]) {
           edit.AddCompleteGuard(guard_metadata);
         }
+
+        edit.AddSentinel(cfd->current()->storage_info()->sentinels_[level]);
       }
       edit.SetLogNumber(cfd->GetLogNumber());
       std::string record;

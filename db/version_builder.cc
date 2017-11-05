@@ -106,6 +106,7 @@ class VersionBuilder::Rep {
   FileComparator level_nonzero_cmp_;
   std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
   std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
+  std::unordered_map<int, GuardMetaData*> sentinels_;
 
  public:
   Rep(const EnvOptions& env_options, Logger* info_log, TableCache* table_cache,
@@ -321,6 +322,7 @@ class VersionBuilder::Rep {
     // clear new_guards and complete_guards first
     const auto& new_guards_from_edit = edit->GetNewGuards();
     const auto& complete_guards_from_edit = edit->GetCompleteGuards();
+    const auto& sentinels_from_edit = edit->GetSentinels();
     new_guards_.clear();
     complete_guards_.clear();
     for (const auto& new_guard : new_guards_from_edit) {
@@ -334,6 +336,12 @@ class VersionBuilder::Rep {
       GuardMetaData* g = new GuardMetaData(complete_guard);
       g->refs = 1;
       complete_guards_[complete_guard.level].push_back(g);
+    }
+    for (const auto& sentinel : sentinels_from_edit) {
+      assert(sentinel.level < num_levels_);
+      GuardMetaData* g = new GuardMetaData(sentinel);
+      g->refs = 1;
+      sentinels_[sentinel.level] = g;
     }
   }
 
@@ -390,6 +398,13 @@ class VersionBuilder::Rep {
 
       vstorage->complete_guards_[level].insert(std::end(vstorage->complete_guards_[level]), std::begin(complete_guards_[level]), std::end(complete_guards_[level]));
       vstorage->new_guards_[level].insert(std::end(vstorage->new_guards_[level]), std::begin(new_guards_[level]), std::end(new_guards_[level]));
+      if (sentinels_.find(level) != sentinels_.end()) {
+        vstorage->sentinels_[level] = sentinels_[level];
+      } else {
+        GuardMetaData* g = new GuardMetaData;
+        g->level = level;
+        vstorage->sentinels_[level] = g;
+      }
     }
 
     CheckConsistency(vstorage);
