@@ -1086,7 +1086,7 @@ class MemTableInserter : public WriteBatch::Handler {
       auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
 
       unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
-      for(unsigned i = 0;i < num_levels; i++) {
+      for(unsigned i = 1; i < num_levels; i++) {
         auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
         if(IsGuardKey(i, key)) {
           for(unsigned j = i; j < num_levels; j++) {
@@ -1161,7 +1161,7 @@ class MemTableInserter : public WriteBatch::Handler {
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
 
     unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
-    for(unsigned i = 0;i < num_levels; i++) {
+    for(unsigned i = 1; i < num_levels; i++) {
       auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
       if(IsGuardKey(i, key)) {
         for(unsigned j = i; j < num_levels; j++) {

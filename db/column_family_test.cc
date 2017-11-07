@@ -869,8 +869,13 @@ TEST_F(ColumnFamilyTest, ReadWrite) {
         ASSERT_OK(Put(0, key, val));
         //printf("----------New key inserted----------\n");
       }
+      printf("        BEFORE CLOSING\n");
+      for(int j = 0; j < dbfull()->NumberLevels(); j++) {
+        auto result = NumGuardsAtLevel(j, 0);
+        printf("\t%d guards at level %d\n", result, j);
+      }
       Reopen();
-      ASSERT_EQ("10000", Get(0, "1000"));
+      printf("        AFTER CLOSING\n");
       for(int j = 0; j < dbfull()->NumberLevels(); j++) {
         auto result = NumGuardsAtLevel(j, 0);
         printf("\t%d guards at level %d\n", result, j);
