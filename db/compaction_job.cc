@@ -800,7 +800,17 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   compression_dict.reserve(cfd->ioptions()->compression_opts.max_dict_bytes);
 
   auto guard_iter = output_guards.begin();
-  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() /* && guard_iter != output_guards.end() */) {
+  // Advance guard_iter so that it points to a valid guard for the first ikey
+  {
+    const ParsedInternalKey& parsed_ikey = c_iter->ikey();
+    InternalKey ikey;
+    ikey.SetFrom(parsed_ikey);
+    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(ikey, (*std::next(guard_iter))->guard_key) >= 0) {
+      guard_iter++;
+    }
+  }
+
+  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() && guard_iter != output_guards.end()) {
     // Invariant: c_iter.status() is guaranteed to be OK if c_iter->Valid()
     // returns true.
     const Slice& key = c_iter->key();
@@ -814,12 +824,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     if (end != nullptr &&
         cfd->user_comparator()->Compare(c_iter->user_key(), *end) >= 0) {
       break;
-    }
-
-    // Check if we need to advance guard
-    const auto& next = std::next(guard_iter);
-    if (next != output_guards.end() && cfd->internal_comparator().Compare(ikey, (*next)->guard_key) >= 0) {
-      guard_iter++;
     }
 
     if (c_iter_stats.num_input_records % kRecordStatsEvery ==
@@ -893,9 +897,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       }
     }
 
-    // Close output file if it is big enough. Two possibilities determine it's
+    // Close output file if it is big enough. Three possibilities determine it's
     // time to close it: (1) the current key should be this file's last key, (2)
-    // the next key should not be in this file.
+    // the next key should not be in this file, (3) the next key goes in a different
+    // guard.
     //
     // TODO(aekmekji): determine if file should be closed earlier than this
     // during subcompactions (i.e. if output size, estimated by input size, is
@@ -912,6 +917,13 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       output_file_ended = true;
     }
     c_iter->Next();
+    const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
+    InternalKey next_ikey;
+    next_ikey.SetFrom(next_parsed_ikey);
+    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(next_ikey, (*std::next(guard_iter))->guard_key) >= 0) {
+      guard_iter++;
+      output_file_ended = true;
+    }
     if (!output_file_ended && c_iter->Valid() &&
         sub_compact->compaction->output_level() != 0 &&
         sub_compact->ShouldStopBefore(

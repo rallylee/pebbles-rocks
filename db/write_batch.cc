@@ -1186,6 +1186,8 @@ class MemTableInserter : public WriteBatch::Handler {
     }
 
     virtual bool IsGuardKey(unsigned level, const Slice& key) {
+      return true;
+      /*
       void* input = (void*)key.data();
       unsigned num_bits = top_level_bits - (level * bit_decrement);
       const unsigned int murmur_seed = 42;
@@ -1196,6 +1198,7 @@ class MemTableInserter : public WriteBatch::Handler {
         return true;
       }
       return false;
+      */
     }
 
   Status DeleteImpl(uint32_t column_family_id, const Slice& key,

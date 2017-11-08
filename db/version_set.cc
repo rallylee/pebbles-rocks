@@ -2099,8 +2099,7 @@ uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
 }
 
 void Version::AddGuard(GuardMetaData* g, int level) {
-  assert(level >= 0 && level < cfd()->NumberLevels());
-  std::cout << "Adding guard!" << std::endl;
+  assert(level >= 1 && level < cfd()->NumberLevels());
   storage_info()->new_guards_[level].push_back(g);
 }
 
