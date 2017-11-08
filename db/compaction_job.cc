@@ -697,6 +697,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   }
 
   const auto output_level = compact_->compaction->output_level();
+  assert(cfd->current()->storage_info()->complete_guards_.find(output_level) != cfd->current()->storage_info()->complete_guards_.end());
+  assert(cfd->current()->storage_info()->new_guards_.find(output_level) != cfd->current()->storage_info()->new_guards_.end());
+  assert(cfd->current()->storage_info()->sentinels_.find(output_level) != cfd->current()->storage_info()->sentinels_.end());
+  assert(cfd->current()->storage_info()->sentinels_[output_level] != nullptr);
   // copy guards
   std::vector<GuardMetaData*> output_guards = cfd->current()->storage_info()->complete_guards_[output_level];
   // no copy needed
@@ -706,6 +710,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       // return true if first < second
       return cfd->internal_comparator().Compare(first->guard_key, second->guard_key) < 0;
     });
+  output_guards.insert(output_guards.begin(), cfd->current()->storage_info()->sentinels_[output_level]);
 
   const MutableCFOptions* mutable_cf_options =
       sub_compact->compaction->mutable_cf_options();
