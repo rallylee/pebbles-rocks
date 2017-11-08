@@ -326,19 +326,25 @@ class VersionBuilder::Rep {
     new_guards_.clear();
     complete_guards_.clear();
     for (const auto& new_guard : new_guards_from_edit) {
+      assert(new_guard.level >= 1);
       assert(new_guard.level < num_levels_);
       GuardMetaData* g = new GuardMetaData(new_guard);
       g->refs = 1;
       new_guards_[new_guard.level].push_back(g);
     }
     for (const auto& complete_guard : complete_guards_from_edit) {
+      assert(complete_guard.level >= 1);
       assert(complete_guard.level < num_levels_);
       GuardMetaData* g = new GuardMetaData(complete_guard);
       g->refs = 1;
       complete_guards_[complete_guard.level].push_back(g);
     }
     for (const auto& sentinel : sentinels_from_edit) {
-      assert(sentinel.level < num_levels_);
+      if (sentinel.level >= num_levels_) {
+        // TODO: figure out how to handle case when number of levels is changed
+        printf("WARNING: %s:%d sentinel.level >= num_levels_! sentinel.level = %d, num_levels_ = %d\n", __FILE__, __LINE__, sentinel.level, num_levels_);
+        break;
+      }
       GuardMetaData* g = new GuardMetaData(sentinel);
       g->refs = 1;
       sentinels_[sentinel.level] = g;

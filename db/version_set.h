@@ -579,6 +579,10 @@ class Version {
     if (storage_info()->complete_guards_.find(level) != storage_info()->complete_guards_.end()) {
       total += storage_info()->complete_guards_[level].size();
     }
+    if (storage_info()->sentinels_.find(level) != storage_info()->sentinels_.end()) {
+      assert(storage_info()->sentinels_[level] != nullptr);
+      total += 1;
+    }
     return total;
   }
 
