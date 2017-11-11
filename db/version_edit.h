@@ -250,11 +250,11 @@ class VersionEdit {
     new_files_.emplace_back(level, f);
   }
 
-  void AddNewGuard(GuardMetaData* g) { new_guards_.emplace_back(*g); }
+  void AddNewGuard(const GuardMetaData& g) { new_guards_.emplace_back(g); }
 
-  void AddCompleteGuard(GuardMetaData* g) { complete_guards_.emplace_back(*g); }
+  void AddCompleteGuard(const GuardMetaData& g) { complete_guards_.emplace_back(g); }
 
-  void AddSentinel(GuardMetaData* g) { sentinels_.emplace_back(*g); }
+  void AddSentinel(const GuardMetaData& g) { sentinels_.emplace_back(g); }
 
   // Delete the specified "file" from the specified "level".
   void DeleteFile(int level, uint64_t file) {

@@ -770,7 +770,8 @@ VersionStorageInfo::VersionStorageInfo(
       current_num_samples_(0),
       estimated_compaction_needed_bytes_(0),
       finalized_(false),
-      force_consistency_checks_(_force_consistency_checks) {
+      force_consistency_checks_(_force_consistency_checks),
+      guard_set_comparator(this) {
   if (ref_vstorage != nullptr) {
     accumulated_file_size_ = ref_vstorage->accumulated_file_size_;
     accumulated_raw_key_size_ = ref_vstorage->accumulated_raw_key_size_;
@@ -781,15 +782,25 @@ VersionStorageInfo::VersionStorageInfo(
     current_num_non_deletions_ = ref_vstorage->current_num_non_deletions_;
     current_num_deletions_ = ref_vstorage->current_num_deletions_;
     current_num_samples_ = ref_vstorage->current_num_samples_;
-    new_guards_ = ref_vstorage->new_guards_;
-    complete_guards_ = ref_vstorage->complete_guards_;
+    // TODO(souvik1997): Make this more efficient
+    // (e.g. construct the unordered_map) entry once, then use
+    // std::set::insert
+    for (const auto& kv : ref_vstorage->new_guards()) {
+      for (const auto& guard : kv.second) {
+        this->AddNewGuard(guard);
+      }
+    }
+    for (const auto& kv : ref_vstorage->complete_guards()) {
+      for (const auto& guard : kv.second) {
+        this->AddCompleteGuard(guard);
+      }
+    }
     sentinels_ = ref_vstorage->sentinels_;
   } else {
     for (int i = 0; i < num_levels_; i++) {
-      GuardMetaData* g = new GuardMetaData;
-      g->refs = 1;
-      g->level = i;
-      sentinels_[i] = g;
+      GuardMetaData g;
+      g.level = i;
+      sentinels_.emplace(std::make_pair(i, g));
     }
   }
 }
@@ -2064,6 +2075,28 @@ void VersionStorageInfo::CalculateBaseBytes(const ImmutableCFOptions& ioptions,
   }
 }
 
+void VersionStorageInfo::AddNewGuard(const GuardMetaData& g) {
+  int level = g.level;
+  assert(level >= 1 && level < num_levels_);
+  if (this->new_guards_.find(level) == this->new_guards_.end()) {
+    this->new_guards_.emplace(std::piecewise_construct, std::forward_as_tuple(level), std::forward_as_tuple(this->guard_set_comparator));
+  }
+  const auto& result = this->new_guards_.find(level);
+  assert(result != this->new_guards_.end());
+  result->second.emplace(g);
+}
+
+void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
+  int level = g.level;
+  assert(level >= 1 && level < num_levels_);
+  if (this->complete_guards_.find(level) == this->complete_guards_.end()) {
+    this->complete_guards_.emplace(std::piecewise_construct, std::forward_as_tuple(level), std::forward_as_tuple(this->guard_set_comparator));
+  }
+  const auto& result = this->complete_guards_.find(level);
+  assert(result != this->complete_guards_.end());
+  result->second.emplace(g);
+}
+
 uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
   // Estimate the live data size by adding up the size of the last level for all
   // key ranges. Note: Estimate depends on the ordering of files in level 0
@@ -2098,9 +2131,11 @@ uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
   return size;
 }
 
-void Version::AddGuard(GuardMetaData* g, int level) {
-  assert(level >= 1 && level < cfd()->NumberLevels());
-  storage_info()->new_guards_[level].push_back(g);
+void Version::AddGuard(InternalKey ikey, int level) {
+  GuardMetaData g;
+  g.guard_key = ikey;
+  g.level = level;
+  storage_info()->AddNewGuard(g);
 }
 
 void Version::AddLiveFiles(std::vector<FileDescriptor>* live) {
@@ -3269,16 +3304,25 @@ Status VersionSet::WriteSnapshot(log::Writer* log) {
       }
 
       // Save guards
+      for (const auto& kv : cfd->current()->storage_info()->new_guards()) {
+        int level = kv.first;
+        const auto& guard_set = kv.second;
+        if (level < cfd->NumberLevels()) {
+          for (const auto& guard_metadata : guard_set) {
+            edit.AddNewGuard(guard_metadata);
+          }
+        }
+      }
+      for (const auto& kv : cfd->current()->storage_info()->complete_guards()) {
+        int level = kv.first;
+        const auto& guard_set = kv.second;
+        if (level < cfd->NumberLevels()) {
+          for (const auto& guard_metadata : guard_set) {
+            edit.AddCompleteGuard(guard_metadata);
+          }
+        }
+      }
       for (int level = 0; level < cfd->NumberLevels(); level++) {
-        for (const auto& guard_metadata :
-             cfd->current()->storage_info()->new_guards_[level]) {
-          edit.AddNewGuard(guard_metadata);
-        }
-        for (const auto& guard_metadata :
-             cfd->current()->storage_info()->complete_guards_[level]) {
-          edit.AddCompleteGuard(guard_metadata);
-        }
-
         edit.AddSentinel(cfd->current()->storage_info()->sentinels_[level]);
       }
       edit.SetLogNumber(cfd->GetLogNumber());

@@ -1011,13 +1011,8 @@ class MemTableInserter : public WriteBatch::Handler {
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
     assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
     Version* version = cfd->current();
-    GuardMetaData* g = new GuardMetaData();
     InternalKey ikey(key, sequence_, kTypeValue);
-    g->guard_key = ikey;
-    g->level = level;
-    g->number_segments = 0;
-    g->refs = 1;
-    version->AddGuard(g, level);
+    version->AddGuard(ikey, level);
     //sequence_++;
   }
 

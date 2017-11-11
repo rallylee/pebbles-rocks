@@ -354,15 +354,8 @@ class VersionStorageInfo {
 
   bool force_consistency_checks() const { return force_consistency_checks_; }
 
-
-  // TODO: match style
-
-  // List of guards for each level
-  std::unordered_map<int, std::vector<GuardMetaData*>> new_guards_;
-
-  std::unordered_map<int, std::vector<GuardMetaData*>> complete_guards_;
-
-  std::unordered_map<int, GuardMetaData*> sentinels_;
+  void AddNewGuard(const GuardMetaData& g);
+  void AddCompleteGuard(const GuardMetaData& g);
 
  private:
   const InternalKeyComparator* internal_comparator_;
@@ -456,6 +449,36 @@ class VersionStorageInfo {
   // No copying allowed
   VersionStorageInfo(const VersionStorageInfo&) = delete;
   void operator=(const VersionStorageInfo&) = delete;
+
+  // TODO: match style
+
+  class GuardSetComparator {
+   public:
+    explicit GuardSetComparator(VersionStorageInfo* parent) : parent_(parent) {}
+    VersionStorageInfo* parent_;
+    bool operator()(const GuardMetaData& first, const GuardMetaData& second) {
+      assert(parent_ != nullptr);
+      return parent_->internal_comparator_->Compare(first.guard_key, second.guard_key) < 0;
+    }
+  };
+
+  GuardSetComparator guard_set_comparator;
+  // List of guards for each level
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>> new_guards_;
+
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>> complete_guards_;
+
+ public:
+
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>& new_guards() {
+    return new_guards_;
+  }
+
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>& complete_guards() {
+    return complete_guards_;
+  }
+
+  std::unordered_map<int, GuardMetaData> sentinels_;
 };
 
 class Version {
@@ -560,33 +583,31 @@ class Version {
 
   void GetColumnFamilyMetaData(ColumnFamilyMetaData* cf_meta);
 
-  int TotalGuards() {
-    int total = 0;
-    for (int i = 0; i < cfd()->NumberLevels(); i++) {
-      total += storage_info()->new_guards_[i].size();
-    }
-    for (int i = 0; i < cfd()->NumberLevels(); i++) {
-      total += storage_info()->complete_guards_[i].size();
-    }
-    return total;
-  }
-
   int TotalGuardsAtLevel(int level) {
     int total = 0;
-    if (storage_info()->new_guards_.find(level) != storage_info()->new_guards_.end()) {
-      total += storage_info()->new_guards_[level].size();
+    const auto& new_guards_result = storage_info()->new_guards().find(level);
+    const auto& complete_guards_result = storage_info()->complete_guards().find(level);
+    if (new_guards_result != storage_info()->new_guards().end()) {
+      total += new_guards_result->second.size();
     }
-    if (storage_info()->complete_guards_.find(level) != storage_info()->complete_guards_.end()) {
-      total += storage_info()->complete_guards_[level].size();
+    if (complete_guards_result != storage_info()->complete_guards().end()) {
+      total += complete_guards_result->second.size();
     }
     if (storage_info()->sentinels_.find(level) != storage_info()->sentinels_.end()) {
-      assert(storage_info()->sentinels_[level] != nullptr);
       total += 1;
     }
     return total;
   }
 
-  void AddGuard(GuardMetaData* g, int level);
+  int TotalGuards() {
+    int total = 0;
+    for (int i = 0; i < cfd()->NumberLevels(); i++) {
+      total += TotalGuardsAtLevel(i);
+    }
+    return total;
+  }
+
+  void AddGuard(InternalKey ikey, int level);
 
  private:
   Env* env_;
