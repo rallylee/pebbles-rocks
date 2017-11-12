@@ -79,8 +79,7 @@ struct CompactionJob::SubcompactionState {
   // Files produced by this subcompaction
   struct Output {
     FileMetaData meta;
-    GuardMetaData* guard;
-    bool finished; // If finished is true, then this file's metadata has been added to the guard
+    bool finished;
     std::shared_ptr<const TableProperties> table_properties;
   };
 
@@ -164,7 +163,6 @@ struct CompactionJob::SubcompactionState {
   SubcompactionState(const SubcompactionState&) = delete;
 
   SubcompactionState& operator=(const SubcompactionState&) = delete;
-
 
   // Returns true iff we should stop building the current output
   // before processing "internal_key".
@@ -410,13 +408,6 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
-
-      const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(out_lvl);
-
-      std::vector<GuardMetaData> guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
-      for(unsigned int i = 0; i < guards.size(); i++) {
-        bounds.emplace_back(guards[i].guard_key.user_key());
-      }
 
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
@@ -760,14 +751,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     compaction_filter = compaction_filter_from_factory.get();
   }
 
-  MergeHelper merge(
-      env_, cfd->user_comparator(), cfd->ioptions()->merge_operator,
-      compaction_filter, db_options_.info_log.get(),
-      false /* internal key corruption is expected*/,
-      existing_snapshots_.empty() ? 0 : existing_snapshots_.back(),
-      compact_->compaction->level(), db_options_.statistics.get(),
-      shutting_down_);
-
   TEST_SYNC_POINT("CompactionJob::Run():Inprogress");
 
   Slice* start = sub_compact->start;
@@ -793,7 +776,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   Status status;
   sub_compact->c_iter.reset(new CompactionIterator(
-      input.get(), cfd->user_comparator(), &merge, versions_->LastSequence(),
+      input.get(), cfd->user_comparator(), versions_->LastSequence(),
       &existing_snapshots_, earliest_write_conflict_snapshot_, env_, false,
       range_del_agg.get(), sub_compact->compaction, compaction_filter,
       comp_event_listener, shutting_down_));
@@ -1275,6 +1258,16 @@ Status CompactionJob::InstallCompactionResults(
       compaction->edit()->AddFile(compaction->output_level(), out.meta);
     }
   }
+
+  // Convert new guards to complete guards
+  ColumnFamilyData* cfd = compaction->column_family_data();
+  const auto& new_guards_result = cfd->current()->storage_info()->new_guards().find(compaction->output_level());
+  if (new_guards_result != cfd->current()->storage_info()->new_guards().end()) {
+    for (const auto& new_guard : new_guards_result->second) {
+      compaction->edit()->AddCompleteGuard(new_guard);
+    }
+  }
+
   return versions_->LogAndApply(compaction->column_family_data(),
                                 mutable_cf_options, compaction->edit(),
                                 db_mutex_, db_directory_);

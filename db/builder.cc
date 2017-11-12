@@ -134,7 +134,7 @@ Status BuildTable(
                       snapshots.empty() ? 0 : snapshots.back());
 
     CompactionIterator c_iter(
-        iter, internal_comparator.user_comparator(), &merge, kMaxSequenceNumber,
+        iter, internal_comparator.user_comparator(), kMaxSequenceNumber,
         &snapshots, earliest_write_conflict_snapshot, env,
         true /* internal key corruption is not ok */, range_del_agg.get());
     c_iter.SeekToFirst();
