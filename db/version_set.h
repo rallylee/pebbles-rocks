@@ -136,6 +136,9 @@ class VersionStorageInfo {
 
   // Generate level_files_brief_ from files_
   void GenerateLevelFilesBrief();
+
+  // Populate guards from files_
+  void PopulateGuards();
   // Sort all files for this version based on their file size and
   // record results in files_by_compaction_pri_. The largest files are listed
   // first.
@@ -544,6 +547,7 @@ class VersionStorageInfo {
           return *complete_guards_iterator_;
         }
         // Undefined behavior
+        assert(false);
         return *complete_guards_iterator_;
       }
 
@@ -596,7 +600,7 @@ class VersionStorageInfo {
 
   std::unordered_map<int, GuardMetaData> sentinels_;
 
-  GuardSet guards_at_level(int level);
+  GuardSet GuardsAtLevel(int level);
 };
 
 class Version {
