@@ -544,6 +544,7 @@ class VersionStorageInfo {
           return *complete_guards_iterator_;
         }
         // Undefined behavior
+        assert(false);
         return *complete_guards_iterator_;
       }
 
