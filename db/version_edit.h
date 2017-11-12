@@ -144,14 +144,19 @@ there can be only one guard starting with a given key, so (level, key)
 uniquely identifies a guard.
 */
 struct GuardMetaData {
-  int refs;
+  /*
+    HyperLevelDB populates the files in a guard after the guard is deserialized
+    (i.e. the set of files is not ever serialized). The member variables marked
+    `mutable` are populated after the guard is read
+   */
+  mutable int refs;
   int level;
-  uint64_t number_segments;
+  mutable uint64_t number_segments;
   InternalKey guard_key;
-  InternalKey smallest;
-  InternalKey largest;
-  std::vector<uint64_t> files;
-  std::vector<FileMetaData*> file_metas;
+  mutable InternalKey smallest;
+  mutable InternalKey largest;
+  mutable std::vector<uint64_t> files;
+  mutable std::vector<FileMetaData*> file_metas;
 
   GuardMetaData()
       : refs(0),
@@ -162,6 +167,13 @@ struct GuardMetaData {
         largest() {
     files.clear();
   }
+
+  bool operator==(GuardMetaData& other) {
+    return other.level == this->level &&
+           other.guard_key.rep() == this->guard_key.rep();
+  }
+
+  bool operator!=(GuardMetaData& other) { return !(*this == other); }
 };
 
 // A compressed copy of file meta data that just contain minimum data needed
@@ -252,7 +264,9 @@ class VersionEdit {
 
   void AddNewGuard(const GuardMetaData& g) { new_guards_.emplace_back(g); }
 
-  void AddCompleteGuard(const GuardMetaData& g) { complete_guards_.emplace_back(g); }
+  void AddCompleteGuard(const GuardMetaData& g) {
+    complete_guards_.emplace_back(g);
+  }
 
   void AddSentinel(const GuardMetaData& g) { sentinels_.emplace_back(g); }
 

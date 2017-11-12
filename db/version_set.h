@@ -355,7 +355,6 @@ class VersionStorageInfo {
   bool force_consistency_checks() const { return force_consistency_checks_; }
 
   void AddNewGuard(const GuardMetaData& g);
-  void AddCompleteGuard(const GuardMetaData& g);
 
  private:
   const InternalKeyComparator* internal_comparator_;
@@ -458,27 +457,146 @@ class VersionStorageInfo {
     VersionStorageInfo* parent_;
     bool operator()(const GuardMetaData& first, const GuardMetaData& second) {
       assert(parent_ != nullptr);
-      return parent_->internal_comparator_->Compare(first.guard_key, second.guard_key) < 0;
+      return parent_->internal_comparator_->Compare(first.guard_key,
+                                                    second.guard_key) < 0;
     }
   };
 
   GuardSetComparator guard_set_comparator;
   // List of guards for each level
-  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>> new_guards_;
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
+      new_guards_;
 
-  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>> complete_guards_;
+  std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
+      complete_guards_;
+
+  void AddCompleteGuard(const GuardMetaData& g);
 
  public:
+  class GuardSet {
+    class Iterator : std::iterator<std::forward_iterator_tag, GuardMetaData> {
+      std::set<GuardMetaData, GuardSetComparator>::iterator
+          complete_guards_iterator_;
+      bool has_complete_guards_iterator_;  // if we switch to c++17 we can use
+                                           // std::optional
+      GuardMetaData& sentinel_;
+      bool on_first_element_;
 
-  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>& new_guards() {
+     public:
+      Iterator(GuardMetaData& sentinel, bool has_complete_guards_iterator,
+               std::set<GuardMetaData, GuardSetComparator>::iterator
+                   complete_guards_iterator)
+          : complete_guards_iterator_(complete_guards_iterator),
+            has_complete_guards_iterator_(has_complete_guards_iterator),
+            sentinel_(sentinel),
+            on_first_element_(true) {}
+
+      Iterator(const Iterator& other)
+          : complete_guards_iterator_(other.complete_guards_iterator_),
+            has_complete_guards_iterator_(other.has_complete_guards_iterator_),
+            sentinel_(other.sentinel_),
+            on_first_element_(other.on_first_element_) {}
+
+      Iterator& operator=(const Iterator& other) {
+        this->complete_guards_iterator_ = other.complete_guards_iterator_;
+        this->sentinel_ = other.sentinel_;
+        this->on_first_element_ = other.on_first_element_;
+        this->has_complete_guards_iterator_ =
+            other.has_complete_guards_iterator_;
+        return *this;
+      }
+
+      bool operator==(const Iterator& other) {
+        if (other.has_complete_guards_iterator_ !=
+                this->has_complete_guards_iterator_ ||
+            other.on_first_element_ != this->on_first_element_ ||
+            other.sentinel_ != this->sentinel_) {
+          return false;
+        }
+        if (has_complete_guards_iterator_) {
+          return this->complete_guards_iterator_ ==
+                 other.complete_guards_iterator_;
+        }
+        return true;
+      }
+
+      bool operator!=(const Iterator& other) { return !(*this == other); }
+
+      Iterator& operator++() {  // pre-increment
+        if (on_first_element_) {
+          on_first_element_ = false;
+        } else if (has_complete_guards_iterator_) {
+          complete_guards_iterator_++;
+        }
+        return *this;
+      }
+
+      Iterator operator++(int) {  // post-increment
+        const auto new_iterator = Iterator(*this);
+        ++(*this);
+        return new_iterator;
+      }
+
+      const GuardMetaData& operator*() {
+        if (on_first_element_) {
+          return sentinel_;
+        } else if (has_complete_guards_iterator_) {
+          return *complete_guards_iterator_;
+        }
+        // Undefined behavior
+        return *complete_guards_iterator_;
+      }
+
+      friend GuardSet;
+    };
+
+    const std::set<GuardMetaData, GuardSetComparator>::iterator
+        complete_guards_begin_;
+    const std::set<GuardMetaData, GuardSetComparator>::iterator
+        complete_guards_end_;
+    bool has_complete_guards_;
+    GuardMetaData& sentinel_;
+
+    GuardSet(GuardMetaData& sentinel,
+             std::set<GuardMetaData, GuardSetComparator>::iterator
+                 complete_guards_begin,
+             std::set<GuardMetaData, GuardSetComparator>::iterator
+                 complete_guards_end)
+        : complete_guards_begin_(complete_guards_begin),
+          complete_guards_end_(complete_guards_end),
+          has_complete_guards_(true),
+          sentinel_(sentinel) {}
+
+    GuardSet(GuardMetaData& sentinel)
+        : has_complete_guards_(false), sentinel_(sentinel) {}
+
+   public:
+    Iterator begin() {
+      return Iterator(sentinel_, has_complete_guards_, complete_guards_begin_);
+    }
+
+    Iterator end() {
+      Iterator g(sentinel_, has_complete_guards_, complete_guards_end_);
+      g.on_first_element_ = false;
+      return g;
+    }
+
+    friend VersionStorageInfo;
+  };
+
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
+  new_guards() {
     return new_guards_;
   }
 
-  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>& complete_guards() {
+  const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
+  complete_guards() {
     return complete_guards_;
   }
 
   std::unordered_map<int, GuardMetaData> sentinels_;
+
+  GuardSet guards_at_level(int level);
 };
 
 class Version {
@@ -586,14 +704,16 @@ class Version {
   int TotalGuardsAtLevel(int level) {
     int total = 0;
     const auto& new_guards_result = storage_info()->new_guards().find(level);
-    const auto& complete_guards_result = storage_info()->complete_guards().find(level);
+    const auto& complete_guards_result =
+        storage_info()->complete_guards().find(level);
     if (new_guards_result != storage_info()->new_guards().end()) {
       total += new_guards_result->second.size();
     }
     if (complete_guards_result != storage_info()->complete_guards().end()) {
       total += complete_guards_result->second.size();
     }
-    if (storage_info()->sentinels_.find(level) != storage_info()->sentinels_.end()) {
+    if (storage_info()->sentinels_.find(level) !=
+        storage_info()->sentinels_.end()) {
       total += 1;
     }
     return total;

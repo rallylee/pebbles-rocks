@@ -2079,7 +2079,9 @@ void VersionStorageInfo::AddNewGuard(const GuardMetaData& g) {
   int level = g.level;
   assert(level >= 1 && level < num_levels_);
   if (this->new_guards_.find(level) == this->new_guards_.end()) {
-    this->new_guards_.emplace(std::piecewise_construct, std::forward_as_tuple(level), std::forward_as_tuple(this->guard_set_comparator));
+    this->new_guards_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(level),
+        std::forward_as_tuple(this->guard_set_comparator));
   }
   const auto& result = this->new_guards_.find(level);
   assert(result != this->new_guards_.end());
@@ -2090,11 +2092,26 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
   int level = g.level;
   assert(level >= 1 && level < num_levels_);
   if (this->complete_guards_.find(level) == this->complete_guards_.end()) {
-    this->complete_guards_.emplace(std::piecewise_construct, std::forward_as_tuple(level), std::forward_as_tuple(this->guard_set_comparator));
+    this->complete_guards_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(level),
+        std::forward_as_tuple(this->guard_set_comparator));
   }
   const auto& result = this->complete_guards_.find(level);
   assert(result != this->complete_guards_.end());
   result->second.emplace(g);
+}
+
+VersionStorageInfo::GuardSet VersionStorageInfo::guards_at_level(int level) {
+  assert(level < num_levels_);
+  assert(this->sentinels_.find(level) != this->sentinels_.end());
+  const auto& result = this->complete_guards_.find(level);
+  if (result != this->complete_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(sentinels_.at(level), result->second.begin(),
+                    result->second.end());
+  } else {
+    return GuardSet(sentinels_.at(level));
+  }
 }
 
 uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
