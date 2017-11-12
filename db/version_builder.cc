@@ -338,7 +338,10 @@ class VersionBuilder::Rep {
     for (const auto& sentinel : sentinels_from_edit) {
       if (sentinel.level >= num_levels_) {
         // TODO: figure out how to handle case when number of levels is changed
-        printf("WARNING: %s:%d sentinel.level >= num_levels_! sentinel.level = %d, num_levels_ = %d\n", __FILE__, __LINE__, sentinel.level, num_levels_);
+        printf(
+            "WARNING: %s:%d sentinel.level >= num_levels_! sentinel.level = "
+            "%d, num_levels_ = %d\n",
+            __FILE__, __LINE__, sentinel.level, num_levels_);
         break;
       }
       sentinels_[sentinel.level] = sentinel;
@@ -351,8 +354,10 @@ class VersionBuilder::Rep {
     CheckConsistency(vstorage);
 
     // For convenience
-    std::function<bool(const GuardMetaData&, const GuardMetaData&)> equals = [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
-      return vstorage->internal_comparator_->Compare(first.guard_key, second.guard_key) == 0;
+    std::function<bool(const GuardMetaData&, const GuardMetaData&)> equals =
+        [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
+      return vstorage->internal_comparator_->Compare(first.guard_key,
+                                                     second.guard_key) == 0;
     };
 
     // Make copy
@@ -361,7 +366,8 @@ class VersionBuilder::Rep {
     // Will construct a sentinel guard if one does not exist
     // const auto& sentinel = sentinels_[level];
 
-    // Remove guards from complete_guards and new_guards if they already exist in vstorage
+    // Remove guards from complete_guards and new_guards if they already exist
+    // in vstorage
 
     for (const GuardMetaData& new_guard : new_guards) {
       int level = new_guard.level;
@@ -371,9 +377,12 @@ class VersionBuilder::Rep {
         break;
       }
       const auto& existing_new_guards = new_guards_result->second;
-      bool exists = existing_new_guards.end() == std::find_if(existing_new_guards.begin(), existing_new_guards.end(), [&] (const GuardMetaData& existing_new_guard) -> bool {
-          return equals(new_guard, existing_new_guard);
-        });
+      bool exists =
+          existing_new_guards.end() ==
+          std::find_if(existing_new_guards.begin(), existing_new_guards.end(),
+                       [&](const GuardMetaData& existing_new_guard) -> bool {
+                         return equals(new_guard, existing_new_guard);
+                       });
       if (!exists) {
         vstorage->AddNewGuard(new_guard);
       }
@@ -381,15 +390,20 @@ class VersionBuilder::Rep {
 
     for (const GuardMetaData& complete_guard : complete_guards) {
       int level = complete_guard.level;
-      const auto& complete_guards_result = vstorage->complete_guards_.find(level);
+      const auto& complete_guards_result =
+          vstorage->complete_guards_.find(level);
       if (complete_guards_result == vstorage->complete_guards_.end()) {
         vstorage->AddCompleteGuard(complete_guard);
         break;
       }
       const auto& existing_complete_guards = complete_guards_result->second;
-      bool exists = existing_complete_guards.end() == std::find_if(existing_complete_guards.begin(), existing_complete_guards.end(), [&] (const GuardMetaData& existing_complete_guard) -> bool {
-          return equals(complete_guard, existing_complete_guard);
-        });
+      bool exists =
+          existing_complete_guards.end() ==
+          std::find_if(
+              existing_complete_guards.begin(), existing_complete_guards.end(),
+              [&](const GuardMetaData& existing_complete_guard) -> bool {
+                return equals(complete_guard, existing_complete_guard);
+              });
       if (!exists) {
         vstorage->AddCompleteGuard(complete_guard);
       }
@@ -444,7 +458,6 @@ class VersionBuilder::Rep {
       for (; base_iter != base_end; ++base_iter) {
         MaybeAddFile(vstorage, level, *base_iter);
       }
-
     }
 
     CheckConsistency(vstorage);
