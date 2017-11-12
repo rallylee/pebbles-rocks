@@ -79,8 +79,7 @@ struct CompactionJob::SubcompactionState {
   // Files produced by this subcompaction
   struct Output {
     FileMetaData meta;
-    GuardMetaData* guard;
-    bool finished; // If finished is true, then this file's metadata has been added to the guard
+    bool finished;
     std::shared_ptr<const TableProperties> table_properties;
   };
 
@@ -1266,6 +1265,16 @@ Status CompactionJob::InstallCompactionResults(
       compaction->edit()->AddFile(compaction->output_level(), out.meta);
     }
   }
+
+  // Convert new guards to complete guards
+  ColumnFamilyData* cfd = compaction->column_family_data();
+  const auto& new_guards_result = cfd->current()->storage_info()->new_guards().find(compaction->output_level());
+  if (new_guards_result != cfd->current()->storage_info()->new_guards().end()) {
+    for (const auto& new_guard : new_guards_result->second) {
+      compaction->edit()->AddCompleteGuard(new_guard);
+    }
+  }
+
   return versions_->LogAndApply(compaction->column_family_data(),
                                 mutable_cf_options, compaction->edit(),
                                 db_mutex_, db_directory_);
