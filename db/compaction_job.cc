@@ -165,6 +165,7 @@ struct CompactionJob::SubcompactionState {
 
   SubcompactionState& operator=(const SubcompactionState&) = delete;
 
+
   // Returns true iff we should stop building the current output
   // before processing "internal_key".
   bool ShouldStopBefore(const Slice& internal_key, uint64_t curr_file_size) {
@@ -409,6 +410,13 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
+
+      const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(out_lvl);
+
+      std::vector<GuardMetaData> guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
+      for(unsigned int i = 0; i < guards.size(); i++) {
+        bounds.emplace_back(guards[i].guard_key.user_key());
+      }
 
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
@@ -751,10 +759,11 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
         sub_compact->compaction->CreateCompactionFilter();
     compaction_filter = compaction_filter_from_factory.get();
   }
+
   MergeHelper merge(
       env_, cfd->user_comparator(), cfd->ioptions()->merge_operator,
       compaction_filter, db_options_.info_log.get(),
-      false /* internal key corruption is expected */,
+      false /* internal key corruption is expected*/,
       existing_snapshots_.empty() ? 0 : existing_snapshots_.back(),
       compact_->compaction->level(), db_options_.statistics.get(),
       shutting_down_);

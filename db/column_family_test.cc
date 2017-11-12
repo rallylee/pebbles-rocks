@@ -353,6 +353,7 @@ class ColumnFamilyTest : public testing::Test {
   }
 
   int NumGuardsAtLevel(int level, int cf) {
+    //Also counts sentinel, so should be 1 at level 0 regardless of randomization
     return GetProperty(cf, "rocksdb.num-guards-at-level" + ToString(level));
   }
 

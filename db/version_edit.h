@@ -166,6 +166,7 @@ struct GuardMetaData {
         smallest(),
         largest() {
     files.clear();
+    file_metas.clear();
   }
 
   bool operator==(GuardMetaData& other) {
