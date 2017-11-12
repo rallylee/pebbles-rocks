@@ -409,6 +409,12 @@ void CompactionJob::GenSubcompactionBoundaries() {
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
 
+  const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(out_lvl);
+  std::vector<GuardMetaData> guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
+  for(unsigned int i = 0; i < guards.size(); i++) {
+      bounds.emplace_back(guards[i].guard_key.user_key());
+  }
+
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
   for (size_t lvl_idx = 0; lvl_idx < c->num_input_levels(); lvl_idx++) {
