@@ -79,7 +79,8 @@ struct CompactionJob::SubcompactionState {
   // Files produced by this subcompaction
   struct Output {
     FileMetaData meta;
-    bool finished;
+    GuardMetaData* guard;
+    bool finished; // If finished is true, then this file's metadata has been added to the guard
     std::shared_ptr<const TableProperties> table_properties;
   };
 
@@ -695,6 +696,29 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     prev_prepare_write_nanos = IOSTATS(prepare_write_nanos);
   }
 
+  const auto output_level = compact_->compaction->output_level();
+  const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(output_level);
+  const auto& new_guards_result = cfd->current()->storage_info()->new_guards().find(output_level);
+  assert(cfd->current()->storage_info()->sentinels_.find(output_level) != cfd->current()->storage_info()->sentinels_.end());
+  // copy guards
+  std::vector<GuardMetaData> output_guards;
+  if (complete_guards_result != cfd->current()->storage_info()->complete_guards().end()) {
+    output_guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
+  }
+
+  if (new_guards_result != cfd->current()->storage_info()->new_guards().end()) {
+    // no copy needed
+    const std::vector<GuardMetaData>& new_guards = std::vector<GuardMetaData>(new_guards_result->second.begin(), new_guards_result->second.end());
+    output_guards.insert(output_guards.end(), new_guards.begin(), new_guards.end());
+  }
+
+  std::sort(output_guards.begin(), output_guards.end(), [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
+      // return true if first < second
+      return cfd->internal_comparator().Compare(first.guard_key, second.guard_key) < 0;
+    });
+
+  output_guards.insert(output_guards.begin(), cfd->current()->storage_info()->sentinels_[output_level]);
+
   const MutableCFOptions* mutable_cf_options =
       sub_compact->compaction->mutable_cf_options();
 
@@ -782,11 +806,25 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   std::string compression_dict;
   compression_dict.reserve(cfd->ioptions()->compression_opts.max_dict_bytes);
 
-  while (status.ok() && !cfd->IsDropped() && c_iter->Valid()) {
+  auto guard_iter = output_guards.begin();
+  // Advance guard_iter so that it points to a valid guard for the first ikey
+  {
+    const ParsedInternalKey& parsed_ikey = c_iter->ikey();
+    InternalKey ikey;
+    ikey.SetFrom(parsed_ikey);
+    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(ikey, (*std::next(guard_iter)).guard_key) >= 0) {
+      guard_iter++;
+    }
+  }
+
+  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() && guard_iter != output_guards.end()) {
     // Invariant: c_iter.status() is guaranteed to be OK if c_iter->Valid()
     // returns true.
     const Slice& key = c_iter->key();
     const Slice& value = c_iter->value();
+    const ParsedInternalKey& parsed_ikey = c_iter->ikey();
+    InternalKey ikey;
+    ikey.SetFrom(parsed_ikey);
 
     // If an end key (exclusive) is specified, check if the current key is
     // >= than it and exit if it is because the iterator is out of its range
@@ -794,6 +832,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
         cfd->user_comparator()->Compare(c_iter->user_key(), *end) >= 0) {
       break;
     }
+
     if (c_iter_stats.num_input_records % kRecordStatsEvery ==
         kRecordStatsEvery - 1) {
       RecordDroppedKeys(c_iter_stats, &sub_compact->compaction_job_stats);
@@ -865,9 +904,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       }
     }
 
-    // Close output file if it is big enough. Two possibilities determine it's
+    // Close output file if it is big enough. Three possibilities determine it's
     // time to close it: (1) the current key should be this file's last key, (2)
-    // the next key should not be in this file.
+    // the next key should not be in this file, (3) the next key goes in a different
+    // guard.
     //
     // TODO(aekmekji): determine if file should be closed earlier than this
     // during subcompactions (i.e. if output size, estimated by input size, is
@@ -884,6 +924,13 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       output_file_ended = true;
     }
     c_iter->Next();
+    const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
+    InternalKey next_ikey;
+    next_ikey.SetFrom(next_parsed_ikey);
+    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(next_ikey, (*std::next(guard_iter)).guard_key) >= 0) {
+      guard_iter++;
+      output_file_ended = true;
+    }
     if (!output_file_ended && c_iter->Valid() &&
         sub_compact->compaction->output_level() != 0 &&
         sub_compact->ShouldStopBefore(

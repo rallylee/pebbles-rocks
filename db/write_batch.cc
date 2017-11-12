@@ -1011,13 +1011,8 @@ class MemTableInserter : public WriteBatch::Handler {
     auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
     assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
     Version* version = cfd->current();
-    GuardMetaData* g = new GuardMetaData();
     InternalKey ikey(key, sequence_, kTypeValue);
-    g->guard_key = ikey;
-    g->level = level;
-    g->number_segments = 0;
-    g->refs = 1;
-    version->AddGuard(g, level);
+    version->AddGuard(ikey, level);
     //sequence_++;
   }
 
@@ -1186,6 +1181,8 @@ class MemTableInserter : public WriteBatch::Handler {
     }
 
     virtual bool IsGuardKey(unsigned level, const Slice& key) {
+      return true;
+      /*
       void* input = (void*)key.data();
       unsigned num_bits = top_level_bits - (level * bit_decrement);
       const unsigned int murmur_seed = 42;
@@ -1196,6 +1193,7 @@ class MemTableInserter : public WriteBatch::Handler {
         return true;
       }
       return false;
+      */
     }
 
   Status DeleteImpl(uint32_t column_family_id, const Slice& key,
