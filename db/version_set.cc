@@ -944,6 +944,41 @@ void VersionStorageInfo::GenerateLevelFilesBrief() {
   }
 }
 
+void VersionStorageInfo::PopulateGuards() {
+  for (int level = 0; level < num_non_empty_levels_; level++) {
+    // printf("Populating guards on level %d\n", level);
+    GuardSet guards = GuardsAtLevel(level);
+    const std::vector<FileMetaData*>& files = files_[level];
+    auto guard_iter = guards.begin();
+    for (size_t i = 0; i < files.size(); i++) {
+      const auto& file_metadata = files[i];
+      InternalKey smallest_internal_key = file_metadata->smallest;
+      InternalKey largest_internal_key = file_metadata->largest;
+      while (true) {
+        auto next_guard = guard_iter;
+        next_guard++;
+        bool reached_end = next_guard == guards.end();
+        if (!reached_end && internal_comparator_->Compare(smallest_internal_key, (*next_guard).guard_key) > 0) {
+            guard_iter++;
+            // printf("Advanced guard_iter\n");
+          }
+        else {
+          break;
+        }
+      }
+      // printf("Adding file %lu/%lu to guard on level %d\n", i, files.size(), level);
+      (*guard_iter).file_metas.emplace_back(file_metadata);
+      if ((*guard_iter).smallest.size() == 0 || internal_comparator_->Compare(smallest_internal_key, (*guard_iter).smallest) < 0) {
+        (*guard_iter).smallest = smallest_internal_key;
+      }
+      if ((*guard_iter).largest.size() == 0 || internal_comparator_->Compare((*guard_iter).largest, largest_internal_key) < 0) {
+        (*guard_iter).largest = largest_internal_key;
+      }
+    }
+    // printf("Finished populating guards on level %d\n", level);
+  }
+}
+
 void Version::PrepareApply(const MutableCFOptions& mutable_cf_options,
                            bool update_stats) {
   UpdateAccumulatedStats(update_stats);
@@ -953,6 +988,7 @@ void Version::PrepareApply(const MutableCFOptions& mutable_cf_options,
   storage_info_.GenerateFileIndexer();
   storage_info_.GenerateLevelFilesBrief();
   storage_info_.GenerateLevel0NonOverlapping();
+  storage_info_.PopulateGuards();
 }
 
 bool Version::MaybeInitializeFileMetaData(FileMetaData* file_meta) {
@@ -2099,9 +2135,23 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
   const auto& result = this->complete_guards_.find(level);
   assert(result != this->complete_guards_.end());
   result->second.emplace(g);
+
+  // Remove from new_guards_, if it exists
+  const auto& new_guards_result = this->new_guards_.find(level);
+  if (new_guards_result != this->new_guards_.end()) {
+    for (auto it = new_guards_result->second.begin(); it != new_guards_result->second.end();) {
+      auto here = it++;
+      const auto& existing_new_guard = *here;
+      if (internal_comparator_->Compare(existing_new_guard.guard_key,
+                                        g.guard_key) == 0) {
+        new_guards_result->second.erase(existing_new_guard);
+        // printf("Removed existing new guard\n");
+      }
+    }
+  }
 }
 
-VersionStorageInfo::GuardSet VersionStorageInfo::guards_at_level(int level) {
+VersionStorageInfo::GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
   assert(level < num_levels_);
   assert(this->sentinels_.find(level) != this->sentinels_.end());
   const auto& result = this->complete_guards_.find(level);
