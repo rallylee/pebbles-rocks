@@ -196,6 +196,11 @@ struct CompactionJob::SubcompactionState {
 
     return false;
   }
+
+  void DebugPrint() {
+    printf("Start: %s", start->ToString().c_str());
+    printf("End: %s", end->ToString().c_str());
+  }
 };
 
 // Maintains state for the entire compaction
@@ -385,6 +390,9 @@ void CompactionJob::Prepare() {
                 compact_->sub_compact_states.size());
   } else {
     compact_->sub_compact_states.emplace_back(c, nullptr, nullptr);
+  }
+  for (size_t i = 1; i < compact_->sub_compact_states.size(); i++) {
+    compact_->sub_compact_states[i].DebugPrint();
   }
 }
 
