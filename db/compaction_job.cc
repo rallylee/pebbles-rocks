@@ -814,10 +814,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   auto guard_iter = output_guards.begin();
   // Advance guard_iter so that it points to a valid guard for the first ikey
-  {
-    const ParsedInternalKey& parsed_ikey = c_iter->ikey();
+  const ParsedInternalKey& initial_parsed_ikey = c_iter->ikey();
+  if (IsExtendedValueType(initial_parsed_ikey.type)) {
     InternalKey ikey;
-    ikey.SetFrom(parsed_ikey);
+    ikey.SetFrom(initial_parsed_ikey);
     while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(ikey, (*std::next(guard_iter)).guard_key) >= 0) {
       guard_iter++;
     }
@@ -828,9 +828,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     // returns true.
     const Slice& key = c_iter->key();
     const Slice& value = c_iter->value();
-    const ParsedInternalKey& parsed_ikey = c_iter->ikey();
-    InternalKey ikey;
-    ikey.SetFrom(parsed_ikey);
 
     // If an end key (exclusive) is specified, check if the current key is
     // >= than it and exit if it is because the iterator is out of its range
@@ -931,11 +928,13 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
     c_iter->Next();
     const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
-    InternalKey next_ikey;
-    next_ikey.SetFrom(next_parsed_ikey);
-    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(next_ikey, (*std::next(guard_iter)).guard_key) >= 0) {
-      guard_iter++;
-      output_file_ended = true;
+    if (IsExtendedValueType(next_parsed_ikey.type)) {
+      InternalKey next_ikey;
+      next_ikey.SetFrom(next_parsed_ikey);
+      while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(next_ikey, (*std::next(guard_iter)).guard_key) >= 0) {
+        guard_iter++;
+        output_file_ended = true;
+      }
     }
     if (!output_file_ended && c_iter->Valid() &&
         sub_compact->compaction->output_level() != 0 &&
