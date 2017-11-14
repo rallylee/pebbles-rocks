@@ -765,6 +765,14 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     compaction_filter = compaction_filter_from_factory.get();
   }
 
+  MergeHelper merge(
+      env_, cfd->user_comparator(), cfd->ioptions()->merge_operator,
+      compaction_filter, db_options_.info_log.get(),
+      false /* internal key corruption is expected */,
+      existing_snapshots_.empty() ? 0 : existing_snapshots_.back(),
+      compact_->compaction->level(), db_options_.statistics.get(),
+      shutting_down_);
+
   TEST_SYNC_POINT("CompactionJob::Run():Inprogress");
 
   Slice* start = sub_compact->start;
@@ -790,7 +798,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
 
   Status status;
   sub_compact->c_iter.reset(new CompactionIterator(
-      input.get(), cfd->user_comparator(), versions_->LastSequence(),
+      input.get(), cfd->user_comparator(), &merge, versions_->LastSequence(),
       &existing_snapshots_, earliest_write_conflict_snapshot_, env_, false,
       range_del_agg.get(), sub_compact->compaction, compaction_filter,
       comp_event_listener, shutting_down_));

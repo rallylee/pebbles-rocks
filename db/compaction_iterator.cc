@@ -33,7 +33,7 @@ CompactionEventListener::CompactionListenerValueType fromInternalValueType(
 #endif  // ROCKSDB_LITE
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Comparator* cmp,
+    InternalIterator* input, const Comparator* cmp, MergeHelper* merge_helper,
     SequenceNumber last_sequence, std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot, Env* env,
     bool expect_valid_internal_key, RangeDelAggregator* range_del_agg,
@@ -41,7 +41,7 @@ CompactionIterator::CompactionIterator(
     CompactionEventListener* compaction_listener,
     const std::atomic<bool>* shutting_down)
     : CompactionIterator(
-          input, cmp, last_sequence, snapshots,
+          input, cmp, merge_helper, last_sequence, snapshots,
           earliest_write_conflict_snapshot, env, expect_valid_internal_key,
           range_del_agg,
           std::unique_ptr<CompactionProxy>(
@@ -49,7 +49,7 @@ CompactionIterator::CompactionIterator(
           compaction_filter, compaction_listener, shutting_down) {}
 
 CompactionIterator::CompactionIterator(
-    InternalIterator* input, const Comparator* cmp,
+    InternalIterator* input, const Comparator* cmp, MergeHelper* merge_helper,
     SequenceNumber last_sequence, std::vector<SequenceNumber>* snapshots,
     SequenceNumber earliest_write_conflict_snapshot, Env* env,
     bool expect_valid_internal_key, RangeDelAggregator* range_del_agg,
@@ -59,6 +59,7 @@ CompactionIterator::CompactionIterator(
     const std::atomic<bool>* shutting_down)
     : input_(input),
       cmp_(cmp),
+      merge_helper_(merge_helper),
       snapshots_(snapshots),
       earliest_write_conflict_snapshot_(earliest_write_conflict_snapshot),
       env_(env),
