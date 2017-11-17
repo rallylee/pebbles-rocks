@@ -283,8 +283,6 @@ class VersionEdit {
     complete_guards_.emplace_back(g);
   }
 
-  void AddSentinel(const GuardMetaData& g) { sentinels_.emplace_back(g); }
-
   // Delete the specified "file" from the specified "level".
   void DeleteFile(int level, uint64_t file) {
     deleted_files_.insert({level, file});
@@ -340,8 +338,6 @@ class VersionEdit {
     return complete_guards_;
   }
 
-  const std::vector<GuardMetaData>& GetSentinels() { return sentinels_; }
-
  private:
   friend class VersionSet;
   friend class Version;
@@ -374,11 +370,8 @@ class VersionEdit {
   bool is_column_family_drop_;
   bool is_column_family_add_;
   std::string column_family_name_;
-  std::vector<std::vector<FileMetaData>> sentinel_files_;
-  std::vector<std::vector<uint64_t>> sentinel_file_nos_;
   std::vector<GuardMetaData> new_guards_;
   std::vector<GuardMetaData> complete_guards_;
-  std::vector<GuardMetaData> sentinels_;
 };
 
 }  // namespace rocksdb

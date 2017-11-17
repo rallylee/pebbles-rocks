@@ -785,10 +785,11 @@ VersionStorageInfo::VersionStorageInfo(
       }
     }
     sentinels_ = ref_vstorage->sentinels_;
-  } else {
-    for (int i = 0; i < num_levels_; i++) {
-      GuardMetaData g;
-      g.level = i;
+  }
+  for (int i = 0; i < num_levels_; i++) {
+    GuardMetaData g;
+    g.level = i;
+    if (sentinels_.find(i) == sentinels_.end()) {
       sentinels_.emplace(std::make_pair(i, g));
     }
   }
@@ -3380,9 +3381,7 @@ Status VersionSet::WriteSnapshot(log::Writer* log) {
           }
         }
       }
-      for (int level = 0; level < cfd->NumberLevels(); level++) {
-        edit.AddSentinel(cfd->current()->storage_info()->sentinels_[level]);
-      }
+
       edit.SetLogNumber(cfd->GetLogNumber());
       std::string record;
       if (!edit.EncodeTo(&record)) {

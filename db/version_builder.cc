@@ -106,7 +106,6 @@ class VersionBuilder::Rep {
   FileComparator level_nonzero_cmp_;
   std::vector<GuardMetaData> new_guards_;
   std::vector<GuardMetaData> complete_guards_;
-  std::unordered_map<int, GuardMetaData> sentinels_;
 
  public:
   Rep(const EnvOptions& env_options, Logger* info_log, TableCache* table_cache,
@@ -322,7 +321,6 @@ class VersionBuilder::Rep {
     // clear new_guards and complete_guards first
     const auto& new_guards_from_edit = edit->GetNewGuards();
     const auto& complete_guards_from_edit = edit->GetCompleteGuards();
-    const auto& sentinels_from_edit = edit->GetSentinels();
     new_guards_.clear();
     complete_guards_.clear();
     for (const auto& new_guard : new_guards_from_edit) {
@@ -334,17 +332,6 @@ class VersionBuilder::Rep {
       assert(complete_guard.level >= 1);
       assert(complete_guard.level < num_levels_);
       complete_guards_.emplace_back(complete_guard);
-    }
-    for (const auto& sentinel : sentinels_from_edit) {
-      if (sentinel.level >= num_levels_) {
-        // TODO: figure out how to handle case when number of levels is changed
-        printf(
-            "WARNING: %s:%d sentinel.level >= num_levels_! sentinel.level = "
-            "%d, num_levels_ = %d\n",
-            __FILE__, __LINE__, sentinel.level, num_levels_);
-        break;
-      }
-      sentinels_[sentinel.level] = sentinel;
     }
   }
 
@@ -363,8 +350,6 @@ class VersionBuilder::Rep {
     // Make copy
     auto complete_guards = complete_guards_;
     auto new_guards = new_guards_;
-    // Will construct a sentinel guard if one does not exist
-    // const auto& sentinel = sentinels_[level];
 
     // Remove guards from complete_guards and new_guards if they already exist
     // in vstorage
@@ -407,10 +392,6 @@ class VersionBuilder::Rep {
       if (!exists) {
         vstorage->AddCompleteGuard(complete_guard);
       }
-    }
-
-    for (int level = 0; level < num_levels_; level++) {
-      vstorage->sentinels_.emplace(std::make_pair(level, sentinels_[level]));
     }
 
     for (int level = 0; level < num_levels_; level++) {

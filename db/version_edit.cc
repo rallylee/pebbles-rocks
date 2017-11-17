@@ -41,7 +41,6 @@ enum Tag {
   kMaxColumnFamily = 203,
   kNewGuard = 204,
   kCompleteGuard = 205,
-  kSentinel = 206,
 };
 
 enum CustomTag {
@@ -203,13 +202,6 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
     PutVarint32(dst, new_guard.level);
     PutLengthPrefixedSlice(dst, new_guard.guard_key.Encode());
     // TODO: how do we encode files inside guards??
-  }
-
-  // Encode sentinel
-  for (const GuardMetaData& sentinel : sentinels_) {
-    PutVarint32(dst, kSentinel);
-    PutVarint32(dst, sentinel.level);
-    // TODO: how do we encode files inside sentinels??
   }
 
   return true;
@@ -482,15 +474,6 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
           new_guards_.push_back(guard);
         } else {
           msg = "new-guard entry";
-        }
-        break;
-      }
-
-      case kSentinel: {
-        if (GetLevel(&input, &guard.level, &msg)) {
-          sentinels_.push_back(guard);
-        } else {
-          msg = "sentinel entry";
         }
         break;
       }
