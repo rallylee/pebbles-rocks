@@ -416,11 +416,11 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
-
-  const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(out_lvl);
-  std::vector<GuardMetaData> guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
-  for(unsigned int i = 0; i < guards.size(); i++) {
-      bounds.emplace_back(guards[i].guard_key.user_key());
+  for (const auto& guard : cfd->current()->storage_info()->GuardsAtLevel(out_lvl)) {
+    // Ignore sentinels
+    if (guard.guard_key.size() > 0) {
+      bounds.emplace_back(guard.guard_key.user_key());
+    }
   }
 
   // Add the starting and/or ending key of certain input files as a potential
