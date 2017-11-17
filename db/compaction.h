@@ -57,7 +57,7 @@ class Compaction {
     return inputs_[compaction_input_level].level;
   }
 
-  void DebugPrint();
+  void DebugPrint(bool before);
 
   int start_level() const { return start_level_; }
 

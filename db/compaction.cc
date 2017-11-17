@@ -205,7 +205,7 @@ Compaction::~Compaction() {
   }
 }
 
-void Compaction::DebugPrint() {
+void Compaction::DebugPrint(bool before) {
   printf("    PRINTING COMPACTION INFO\n");
   printf("Compaction Level: %d\n", level());
   /*printf("Input files: %d\n", (int) num_input_files(level()));
@@ -215,7 +215,12 @@ void Compaction::DebugPrint() {
   printf("\n");*/
   printf("Should form subcompactions: %d\n", (int) ShouldFormSubcompactions());
   printf("Version info:\n");
-  printf("%s", input_version()->DebugString().c_str());
+  if(before) {
+    printf("%s", input_version()->DebugString().c_str());
+  }
+  else {
+    printf("%s", edit_.DebugString().c_str());
+  }
   printf("----------------------------\n\n");
 }
 
