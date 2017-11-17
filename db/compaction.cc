@@ -205,6 +205,20 @@ Compaction::~Compaction() {
   }
 }
 
+void Compaction::DebugPrint() {
+  printf("    PRINTING COMPACTION INFO\n");
+  printf("----------------------------\n");
+  printf("Compaction Level: %d\n", level());
+  printf("----------------------------\n");
+  printf("Input files: %d\n", (int) num_input_files(level()));
+  for (size_t i = 0; i < num_input_files(level()); i++) {
+    input(level(), i)->DebugPrint();
+  }
+  printf("----------------------------\n");
+  printf("Should form subcompactions: %d\n", (int) ShouldFormSubcompactions());
+  printf("----------------------------\n");
+}
+
 bool Compaction::InputCompressionMatchesOutput() const {
   int base_level = input_vstorage_->base_level();
   bool matches = (GetCompressionType(immutable_cf_options_, input_vstorage_,

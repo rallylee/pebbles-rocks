@@ -136,6 +136,13 @@ struct FileMetaData {
     smallest_seqno = std::min(smallest_seqno, seqno);
     largest_seqno = std::max(largest_seqno, seqno);
   }
+
+  void DebugPrint() {
+    printf("    PRINTING FILE META DATA\n");
+    printf("Smallest: %s\n", smallest.DebugString().c_str());
+    printf("Largest: %s\n", largest.DebugString().c_str());
+    printf("Num Entries: %u\n", (unsigned int) num_entries);
+  }
 };
 
 /*
@@ -168,6 +175,14 @@ struct GuardMetaData {
     files.clear();
     file_metas.clear();
   }
+
+    void DebugPrint() {
+      printf("---------\n");
+      printf("\tSmallest: %s\n", smallest.DebugString().c_str());
+      printf("\tLargest: %s\n", largest.DebugString().c_str());
+      printf("\tNum FilesMetas: %d\n", (int) file_metas.size());
+      printf("---------\n");
+    }
 
   bool operator==(GuardMetaData& other) {
     return other.level == this->level &&
