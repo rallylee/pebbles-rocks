@@ -175,13 +175,13 @@ struct GuardMetaData {
     file_metas.clear();
   }
 
-    void DebugPrint() {
-      printf("---------\n");
-      printf("\tSmallest: %s\n", smallest.DebugString().c_str());
-      printf("\tLargest: %s\n", largest.DebugString().c_str());
-      printf("\tNum FilesMetas: %d\n", (int) file_metas.size());
-      printf("---------\n");
-    }
+  void DebugPrint() {
+    printf("---------\n");
+    printf("\tSmallest: %s\n", smallest.DebugString().c_str());
+    printf("\tLargest: %s\n", largest.DebugString().c_str());
+    printf("\tNum FilesMetas: %d\n", (int)file_metas.size());
+    printf("---------\n");
+  }
 
   bool operator==(GuardMetaData& other) {
     return other.level == this->level &&

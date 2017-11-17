@@ -20,6 +20,7 @@
 #pragma once
 #include <atomic>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -27,7 +28,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <iterator>
 
 #include "db/column_family.h"
 #include "db/compaction.h"
@@ -496,9 +496,7 @@ class VersionStorageInfo {
       GuardMetaData& sentinel_;
       bool on_first_element_;
 
-
      public:
-
       Iterator(GuardMetaData& sentinel, bool has_complete_guards_iterator,
                std::set<GuardMetaData, GuardSetComparator>::iterator
                    complete_guards_iterator)
@@ -613,8 +611,6 @@ class VersionStorageInfo {
 
     friend VersionStorageInfo;
   };
-
-
 
   const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
   new_guards() {
@@ -1072,14 +1068,14 @@ class VersionSet {
 
 }  // namespace rocksdb
 
-
 // This is really ugly...
 namespace std {
-  template<> struct iterator_traits<rocksdb::VersionStorageInfo::GuardSet::Iterator> {
-    typedef std::forward_iterator_tag iterator_category;
-    typedef rocksdb::GuardMetaData value_type;
-    typedef rocksdb::GuardMetaData& reference;
-    typedef rocksdb::GuardMetaData* pointer;
-    typedef std::ptrdiff_t difference_type;
-  };
+template <>
+struct iterator_traits<rocksdb::VersionStorageInfo::GuardSet::Iterator> {
+  typedef std::forward_iterator_tag iterator_category;
+  typedef rocksdb::GuardMetaData value_type;
+  typedef rocksdb::GuardMetaData& reference;
+  typedef rocksdb::GuardMetaData* pointer;
+  typedef std::ptrdiff_t difference_type;
+};
 }  // namespace std

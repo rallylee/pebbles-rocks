@@ -88,9 +88,7 @@ int FindFileInRange(const InternalKeyComparator& icmp,
 class FilePicker {
  public:
   FilePicker(VersionStorageInfo* storage_info, const Slice& ikey)
-    :   storage_info_(storage_info),
-        curr_level_(0),
-        search_ended_(false) {
+      : storage_info_(storage_info), curr_level_(0), search_ended_(false) {
     ikey_.DecodeFrom(ikey);
     if (curr_level_ >= storage_info_->num_non_empty_levels()) {
       search_ended_ = true;
@@ -105,11 +103,10 @@ class FilePicker {
     assert(curr_level_ < storage_info_->num_non_empty_levels());
     GuardMetaData fake_guard;
     fake_guard.guard_key = ikey_;
-    VersionStorageInfo::GuardSet guards = storage_info_->GuardsAtLevel(curr_level_);
-    auto guard = std::lower_bound(guards.begin(),
-                                         guards.end(),
-                                         fake_guard,
-                                         storage_info_->guard_set_comparator());
+    VersionStorageInfo::GuardSet guards =
+        storage_info_->GuardsAtLevel(curr_level_);
+    auto guard = std::lower_bound(guards.begin(), guards.end(), fake_guard,
+                                  storage_info_->guard_set_comparator());
     --guard;
     // This should always be safe
     file_meta_data_iterator_ = (*guard).file_metas.begin();
@@ -139,7 +136,9 @@ class FilePicker {
   // getter for current file level
   // for GET_HIT_L0, GET_HIT_L1 & GET_HIT_L2_AND_UP counts
   unsigned int GetHitFileLevel() { return GetCurrentLevel(); }
-  unsigned int GetCurrentLevel() { return static_cast<unsigned int>(curr_level_); }
+  unsigned int GetCurrentLevel() {
+    return static_cast<unsigned int>(curr_level_);
+  }
 
   // Returns true if the most recent "hit file" (i.e., one returned by
   // GetNextFile()) is at the last index in its level.
@@ -936,7 +935,8 @@ void VersionStorageInfo::PopulateGuards() {
     // printf("Populating guards on level %d\n", level);
     GuardSet guards = GuardsAtLevel(level);
     const std::vector<FileMetaData*>& files = files_[level];
-    for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
+    for (auto guard_iter = guards.begin(); guard_iter != guards.end();
+         guard_iter++) {
       (*guard_iter).file_metas.clear();
       auto next_guard = guard_iter;
       next_guard++;
@@ -946,29 +946,33 @@ void VersionStorageInfo::PopulateGuards() {
         const auto& file_metadata = files[i];
         InternalKey smallest_internal_key = file_metadata->smallest;
         InternalKey largest_internal_key = file_metadata->largest;
-        if (reached_end || internal_comparator_->Compare(smallest_internal_key, (*next_guard).guard_key) > 0) {
-          // printf("Adding file %lu/%lu to guard on level %d\n", i, files.size(), level);
+        if (reached_end ||
+            internal_comparator_->Compare(smallest_internal_key,
+                                          (*next_guard).guard_key) > 0) {
+          // printf("Adding file %lu/%lu to guard on level %d\n", i,
+          // files.size(), level);
           for (const auto& y : (*guard_iter).file_metas) {
             if (y == file_metadata) {
               assert(false);
             }
           }
           (*guard_iter).file_metas.emplace_back(file_metadata);
-          if ((*guard_iter).smallest.size() == 0 || internal_comparator_->Compare(smallest_internal_key, (*guard_iter).smallest) < 0) {
+          if ((*guard_iter).smallest.size() == 0 ||
+              internal_comparator_->Compare(smallest_internal_key,
+                                            (*guard_iter).smallest) < 0) {
             (*guard_iter).smallest = smallest_internal_key;
           }
-          if ((*guard_iter).largest.size() == 0 || internal_comparator_->Compare((*guard_iter).largest, largest_internal_key) < 0) {
+          if ((*guard_iter).largest.size() == 0 ||
+              internal_comparator_->Compare((*guard_iter).largest,
+                                            largest_internal_key) < 0) {
             (*guard_iter).largest = largest_internal_key;
           }
         }
       }
     }
 
-
-
     // printf("Finished populating guards on level %d\n", level);
   }
-
 }
 
 void Version::PrepareApply(const MutableCFOptions& mutable_cf_options,
@@ -2131,7 +2135,8 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
   // Remove from new_guards_, if it exists
   const auto& new_guards_result = this->new_guards_.find(level);
   if (new_guards_result != this->new_guards_.end()) {
-    for (auto it = new_guards_result->second.begin(); it != new_guards_result->second.end();) {
+    for (auto it = new_guards_result->second.begin();
+         it != new_guards_result->second.end();) {
       auto here = it++;
       const auto& existing_new_guard = *here;
       if (internal_comparator_->Compare(existing_new_guard.guard_key,
