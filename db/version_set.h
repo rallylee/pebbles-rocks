@@ -27,6 +27,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iterator>
 
 #include "db/column_family.h"
 #include "db/compaction.h"
@@ -460,12 +461,20 @@ class VersionStorageInfo {
     VersionStorageInfo* parent_;
     bool operator()(const GuardMetaData& first, const GuardMetaData& second) {
       assert(parent_ != nullptr);
-      return parent_->internal_comparator_->Compare(first.guard_key,
-                                                    second.guard_key) < 0;
+      if (first.guard_key.size() == 0 && second.guard_key.size() != 0) {
+        return true;
+      } else if (first.guard_key.size() != 0 && second.guard_key.size() == 0) {
+        return false;
+      } else if (first.guard_key.size() == 0 && second.guard_key.size() == 0) {
+        return false;
+      } else {
+        return parent_->internal_comparator_->Compare(first.guard_key,
+                                                      second.guard_key) < 0;
+      }
     }
   };
 
-  GuardSetComparator guard_set_comparator;
+  GuardSetComparator guard_set_comparator_;
   // List of guards for each level
   std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
       new_guards_;
@@ -477,19 +486,24 @@ class VersionStorageInfo {
 
  public:
   class GuardSet {
-    class Iterator : std::iterator<std::forward_iterator_tag, GuardMetaData> {
+    class Iterator {
       std::set<GuardMetaData, GuardSetComparator>::iterator
           complete_guards_iterator_;
+      std::set<GuardMetaData, GuardSetComparator>::iterator
+          original_complete_guards_iterator_;
       bool has_complete_guards_iterator_;  // if we switch to c++17 we can use
                                            // std::optional
       GuardMetaData& sentinel_;
       bool on_first_element_;
 
+
      public:
+
       Iterator(GuardMetaData& sentinel, bool has_complete_guards_iterator,
                std::set<GuardMetaData, GuardSetComparator>::iterator
                    complete_guards_iterator)
           : complete_guards_iterator_(complete_guards_iterator),
+            original_complete_guards_iterator_(complete_guards_iterator),
             has_complete_guards_iterator_(has_complete_guards_iterator),
             sentinel_(sentinel),
             on_first_element_(true) {}
@@ -551,6 +565,18 @@ class VersionStorageInfo {
         return *complete_guards_iterator_;
       }
 
+      Iterator& operator--() {  // pre-decrement
+        if (on_first_element_) {
+          assert(false);
+        }
+        if (complete_guards_iterator_ == original_complete_guards_iterator_) {
+          on_first_element_ = true;
+        } else {
+          complete_guards_iterator_--;
+        }
+        return *this;
+      }
+
       friend GuardSet;
     };
 
@@ -588,6 +614,8 @@ class VersionStorageInfo {
     friend VersionStorageInfo;
   };
 
+
+
   const std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>&
   new_guards() {
     return new_guards_;
@@ -601,6 +629,9 @@ class VersionStorageInfo {
   std::unordered_map<int, GuardMetaData> sentinels_;
 
   GuardSet GuardsAtLevel(int level);
+  const GuardSetComparator& guard_set_comparator() const {
+    return guard_set_comparator_;
+  }
 };
 
 class Version {
@@ -1040,3 +1071,15 @@ class VersionSet {
 };
 
 }  // namespace rocksdb
+
+
+// This is really ugly...
+namespace std {
+  template<> struct iterator_traits<rocksdb::VersionStorageInfo::GuardSet::Iterator> {
+    typedef std::forward_iterator_tag iterator_category;
+    typedef rocksdb::GuardMetaData value_type;
+    typedef rocksdb::GuardMetaData& reference;
+    typedef rocksdb::GuardMetaData* pointer;
+    typedef std::ptrdiff_t difference_type;
+  };
+}  // namespace std

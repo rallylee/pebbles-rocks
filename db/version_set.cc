@@ -87,84 +87,73 @@ int FindFileInRange(const InternalKeyComparator& icmp,
 // are MergeInProgress).
 class FilePicker {
  public:
-  FilePicker(std::vector<FileMetaData*>* files, const Slice& user_key,
-             const Slice& ikey, autovector<LevelFilesBrief>* file_levels,
-             unsigned int num_levels, FileIndexer* file_indexer,
-             const Comparator* user_comparator,
-             const InternalKeyComparator* internal_comparator)
-      : num_levels_(num_levels),
-        curr_level_(static_cast<unsigned int>(0)),
-        returned_file_level_(static_cast<unsigned int>(0)),
-        hit_file_level_(static_cast<unsigned int>(0)),
-        search_left_bound_(0),
-        search_right_bound_(FileIndexer::kLevelMaxIndex),
-#ifndef NDEBUG
-        files_(files),
-#endif
-        level_files_brief_(file_levels),
-        curr_index_in_curr_level_(0),
-        user_key_(user_key),
-        ikey_(ikey),
-        file_indexer_(file_indexer),
-        user_comparator_(user_comparator),
-        internal_comparator_(internal_comparator),
+  FilePicker(VersionStorageInfo* storage_info, const Slice& ikey)
+    :   storage_info_(storage_info),
+        curr_level_(0),
         search_ended_(false) {
+    ikey_.DecodeFrom(ikey);
+    if (curr_level_ >= storage_info_->num_non_empty_levels()) {
+      search_ended_ = true;
+    } else {
+      SetUpIterator();
+    }
   }
 
   int GetCurrentLevel() const { return curr_level_; }
 
-  FdWithKeyRange* GetNextFile() {
+  void SetUpIterator() {
+    assert(curr_level_ < storage_info_->num_non_empty_levels());
+    GuardMetaData fake_guard;
+    fake_guard.guard_key = ikey_;
+    VersionStorageInfo::GuardSet guards = storage_info_->GuardsAtLevel(curr_level_);
+    auto guard = std::lower_bound(guards.begin(),
+                                         guards.end(),
+                                         fake_guard,
+                                         storage_info_->guard_set_comparator());
+    --guard;
+    // This should always be safe
+    file_meta_data_iterator_ = (*guard).file_metas.begin();
+    file_meta_data_iterator_end_ = (*guard).file_metas.end();
+  }
+
+  FileMetaData* GetNextFile() {
     if (search_ended_) {
       return nullptr;
     }
-    if (curr_level_ >= level_files_brief_->size()) {
-      search_ended_ = true;
-      return nullptr;
-    }
-    LevelFilesBrief* curr_file_level = &(*level_files_brief_)[curr_level_];
-    if (curr_index_in_curr_level_ >= curr_file_level->num_files) {
+    // Guard may be empty (?)
+    while (file_meta_data_iterator_ == file_meta_data_iterator_end_) {
+      // Increment level
       curr_level_++;
-      if (curr_level_ >= num_levels_) {
+      if (curr_level_ >= storage_info_->num_non_empty_levels()) {
         search_ended_ = true;
         return nullptr;
       }
-      curr_file_level = &(*level_files_brief_)[curr_level_];
-      curr_index_in_curr_level_ = 0;
+      SetUpIterator();
     }
-    FdWithKeyRange* f = &curr_file_level->files[curr_index_in_curr_level_];
-    curr_index_in_curr_level_++;
+
+    FileMetaData* f = *file_meta_data_iterator_;
+    file_meta_data_iterator_++;
     return f;
   }
 
   // getter for current file level
   // for GET_HIT_L0, GET_HIT_L1 & GET_HIT_L2_AND_UP counts
   unsigned int GetHitFileLevel() { return GetCurrentLevel(); }
+  unsigned int GetCurrentLevel() { return static_cast<unsigned int>(curr_level_); }
 
   // Returns true if the most recent "hit file" (i.e., one returned by
   // GetNextFile()) is at the last index in its level.
   bool IsHitFileLastInLevel() {
-    LevelFilesBrief* curr_file_level = &(*level_files_brief_)[curr_level_];
-    return curr_index_in_curr_level_ == curr_file_level->num_files - 1;
+    return file_meta_data_iterator_ == file_meta_data_iterator_end_;
   }
 
  private:
-  unsigned int num_levels_;
-  unsigned int curr_level_;
-  unsigned int returned_file_level_;
-  unsigned int hit_file_level_;
-  int32_t search_left_bound_;
-  int32_t search_right_bound_;
-#ifndef NDEBUG
-  std::vector<FileMetaData*>* files_;
-#endif
-  autovector<LevelFilesBrief>* level_files_brief_;
-  unsigned int curr_index_in_curr_level_;
-  Slice user_key_;
-  Slice ikey_;
-  FileIndexer* file_indexer_;
-  const Comparator* user_comparator_;
-  const InternalKeyComparator* internal_comparator_;
+  VersionStorageInfo* storage_info_;
+  int curr_level_;
+  InternalKey ikey_;
   bool search_ended_;
+  std::vector<FileMetaData*>::iterator file_meta_data_iterator_;
+  std::vector<FileMetaData*>::iterator file_meta_data_iterator_end_;
 };
 }  // anonymous namespace
 
@@ -771,7 +760,7 @@ VersionStorageInfo::VersionStorageInfo(
       estimated_compaction_needed_bytes_(0),
       finalized_(false),
       force_consistency_checks_(_force_consistency_checks),
-      guard_set_comparator(this) {
+      guard_set_comparator_(this) {
   if (ref_vstorage != nullptr) {
     accumulated_file_size_ = ref_vstorage->accumulated_file_size_;
     accumulated_raw_key_size_ = ref_vstorage->accumulated_raw_key_size_;
@@ -858,14 +847,11 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
     pinned_iters_mgr.StartPinning();
   }
 
-  FilePicker fp(
-      storage_info_.files_, user_key, ikey, &storage_info_.level_files_brief_,
-      storage_info_.num_non_empty_levels_, &storage_info_.file_indexer_,
-      user_comparator(), internal_comparator());
-  FdWithKeyRange* f = fp.GetNextFile();
+  FilePicker fp(storage_info(), ikey);
+  FileMetaData* f = fp.GetNextFile();
   while (f != nullptr) {
     if (get_context.sample()) {
-      sample_file_read_inc(f->file_metadata);
+      sample_file_read_inc(f);
     }
     *status = table_cache_->Get(
         read_options, *internal_comparator(), f->fd, ikey, &get_context,
@@ -948,6 +934,9 @@ void VersionStorageInfo::PopulateGuards() {
   for (int level = 0; level < num_non_empty_levels_; level++) {
     // printf("Populating guards on level %d\n", level);
     GuardSet guards = GuardsAtLevel(level);
+    for (auto& guard : guards) {
+      guard.file_metas.clear();
+    }
     const std::vector<FileMetaData*>& files = files_[level];
     auto guard_iter = guards.begin();
     for (size_t i = 0; i < files.size(); i++) {
@@ -967,6 +956,11 @@ void VersionStorageInfo::PopulateGuards() {
         }
       }
       // printf("Adding file %lu/%lu to guard on level %d\n", i, files.size(), level);
+      for (const auto& y : (*guard_iter).file_metas) {
+        if (y == file_metadata) {
+          assert(false);
+        }
+      }
       (*guard_iter).file_metas.emplace_back(file_metadata);
       if ((*guard_iter).smallest.size() == 0 || internal_comparator_->Compare(smallest_internal_key, (*guard_iter).smallest) < 0) {
         (*guard_iter).smallest = smallest_internal_key;
@@ -977,6 +971,7 @@ void VersionStorageInfo::PopulateGuards() {
     }
     // printf("Finished populating guards on level %d\n", level);
   }
+
 }
 
 void Version::PrepareApply(const MutableCFOptions& mutable_cf_options,
@@ -2117,7 +2112,7 @@ void VersionStorageInfo::AddNewGuard(const GuardMetaData& g) {
   if (this->new_guards_.find(level) == this->new_guards_.end()) {
     this->new_guards_.emplace(
         std::piecewise_construct, std::forward_as_tuple(level),
-        std::forward_as_tuple(this->guard_set_comparator));
+        std::forward_as_tuple(this->guard_set_comparator_));
   }
   const auto& result = this->new_guards_.find(level);
   assert(result != this->new_guards_.end());
@@ -2130,7 +2125,7 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
   if (this->complete_guards_.find(level) == this->complete_guards_.end()) {
     this->complete_guards_.emplace(
         std::piecewise_construct, std::forward_as_tuple(level),
-        std::forward_as_tuple(this->guard_set_comparator));
+        std::forward_as_tuple(this->guard_set_comparator_));
   }
   const auto& result = this->complete_guards_.find(level);
   assert(result != this->complete_guards_.end());
