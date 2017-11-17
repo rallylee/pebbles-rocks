@@ -207,16 +207,16 @@ Compaction::~Compaction() {
 
 void Compaction::DebugPrint() {
   printf("    PRINTING COMPACTION INFO\n");
-  printf("----------------------------\n");
   printf("Compaction Level: %d\n", level());
-  printf("----------------------------\n");
-  printf("Input files: %d\n", (int) num_input_files(level()));
+  /*printf("Input files: %d\n", (int) num_input_files(level()));
   for (size_t i = 0; i < num_input_files(level()); i++) {
     input(level(), i)->DebugPrint();
   }
-  printf("----------------------------\n");
+  printf("\n");*/
   printf("Should form subcompactions: %d\n", (int) ShouldFormSubcompactions());
-  printf("----------------------------\n");
+  printf("Version info:\n");
+  printf("%s", input_version()->DebugString().c_str());
+  printf("----------------------------\n\n");
 }
 
 bool Compaction::InputCompressionMatchesOutput() const {

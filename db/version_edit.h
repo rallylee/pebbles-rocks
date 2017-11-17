@@ -141,7 +141,6 @@ struct FileMetaData {
     printf("    PRINTING FILE META DATA\n");
     printf("Smallest: %s\n", smallest.DebugString().c_str());
     printf("Largest: %s\n", largest.DebugString().c_str());
-    printf("Num Entries: %u\n", (unsigned int) num_entries);
   }
 };
 
