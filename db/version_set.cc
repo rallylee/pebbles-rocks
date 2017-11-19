@@ -87,8 +87,8 @@ int FindFileInRange(const InternalKeyComparator& icmp,
 // are MergeInProgress).
 class FilePicker {
  public:
-  FilePicker(VersionStorageInfo* storage_info, const Slice& ikey)
-      : storage_info_(storage_info), curr_level_(0), search_ended_(false) {
+  FilePicker(VersionStorageInfo* storage_info, const Slice& ikey, const Comparator* const user_comparator)
+    : storage_info_(storage_info), curr_level_(0), search_ended_(false), user_comparator_(user_comparator) {
     ikey_.DecodeFrom(ikey);
     if (curr_level_ >= storage_info_->num_non_empty_levels()) {
       search_ended_ = true;
@@ -117,19 +117,36 @@ class FilePicker {
     if (search_ended_) {
       return nullptr;
     }
-    // Guard may be empty (?)
-    while (file_meta_data_iterator_ == file_meta_data_iterator_end_) {
-      // Increment level
-      curr_level_++;
-      if (curr_level_ >= storage_info_->num_non_empty_levels()) {
-        search_ended_ = true;
-        return nullptr;
+    FileMetaData* f = nullptr;
+    const Slice& user_key = ikey_.user_key();
+    while (true) {
+      // Guard may be empty (?)
+      while (file_meta_data_iterator_ == file_meta_data_iterator_end_) {
+        // Increment level
+        curr_level_++;
+        if (curr_level_ >= storage_info_->num_non_empty_levels()) {
+          search_ended_ = true;
+          return nullptr;
+        }
+        SetUpIterator();
       }
-      SetUpIterator();
-    }
 
-    FileMetaData* f = *file_meta_data_iterator_;
-    file_meta_data_iterator_++;
+      f = *file_meta_data_iterator_;
+      file_meta_data_iterator_++;
+      if (f->smallest.size() >= 8) {
+        const Slice& smallest_key = f->smallest.user_key();
+        if (user_comparator_->Compare(smallest_key, user_key) > 0) {
+          continue;
+        }
+      }
+      if (f->largest.size() >= 8) {
+        const Slice& largest_key = f->largest.user_key();
+        if (user_comparator_->Compare(largest_key, user_key) < 0) {
+          continue;
+        }
+      }
+      break;
+    }
     return f;
   }
 
@@ -153,6 +170,7 @@ class FilePicker {
   bool search_ended_;
   std::vector<FileMetaData*>::iterator file_meta_data_iterator_;
   std::vector<FileMetaData*>::iterator file_meta_data_iterator_end_;
+  const Comparator* const user_comparator_;
 };
 }  // anonymous namespace
 
@@ -847,7 +865,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
     pinned_iters_mgr.StartPinning();
   }
 
-  FilePicker fp(storage_info(), ikey);
+  FilePicker fp(storage_info(), ikey, user_comparator());
   FileMetaData* f = fp.GetNextFile();
   while (f != nullptr) {
     if (get_context.sample()) {
