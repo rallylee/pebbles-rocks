@@ -949,7 +949,7 @@ int GetUniversalCompactionInputUnits(uint32_t num_flushes) {
 }
 }  // namespace
 
-TEST_P(CompactionJobStatsTest, UniversalCompactionTest) {
+TEST_P(CompactionJobStatsTest, DISABLED_UniversalCompactionTest) {
   Random rnd(301);
   uint64_t key_base = 100000000l;
   // Note: key_base must be multiple of num_keys_per_L0_file
