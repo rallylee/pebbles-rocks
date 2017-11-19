@@ -42,9 +42,8 @@ Status ReadableWriteBatch::GetEntryFromDataOffset(size_t data_offset,
   Slice input = Slice(rep_.data() + data_offset, rep_.size() - data_offset);
   char tag;
   uint32_t column_family;
-  uint32_t level;
   Status s = ReadRecordFromWriteBatch(&input, &tag, &column_family, Key, value,
-                                      blob, xid, &level);
+                                      blob, xid);
 
   switch (tag) {
     case kTypeColumnFamilyValue:

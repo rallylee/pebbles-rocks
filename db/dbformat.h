@@ -47,7 +47,6 @@ enum ValueType : unsigned char {
   kTypeNoop = 0xD,                        // WAL only.
   kTypeColumnFamilyRangeDeletion = 0xE,   // WAL only.
   kTypeRangeDeletion = 0xF,               // meta block
-  kTypeGuard = 0x10,
   kMaxValue = 0x7F                        // Not used for storing records.
 };
 
@@ -556,8 +555,7 @@ extern bool ReadKeyFromWriteBatchEntry(Slice* input, Slice* key,
 // input will be advanced to after the record.
 extern Status ReadRecordFromWriteBatch(Slice* input, char* tag,
                                        uint32_t* column_family, Slice* key,
-                                       Slice* value, Slice* blob, Slice* xid,
-                                       uint32_t* level);
+                                       Slice* value, Slice* blob, Slice* xid);
 
 // When user call DeleteRange() to delete a range of keys,
 // we will store a serialized RangeTombstone in MemTable and SST.

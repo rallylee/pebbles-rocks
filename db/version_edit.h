@@ -10,19 +10,17 @@
 #pragma once
 #include <algorithm>
 #include <set>
-#include <string>
 #include <utility>
 #include <vector>
-#include "db/dbformat.h"
+#include <string>
 #include "rocksdb/cache.h"
+#include "db/dbformat.h"
 #include "util/arena.h"
 #include "util/autovector.h"
 
 namespace rocksdb {
 
 class VersionSet;
-
-struct GuardMetaData;
 
 const uint64_t kFileNumberMask = 0x3FFFFFFFFFFFFFFF;
 
@@ -57,8 +55,8 @@ struct FileDescriptor {
     return packed_number_and_path_id & kFileNumberMask;
   }
   uint32_t GetPathId() const {
-    return static_cast<uint32_t>(packed_number_and_path_id /
-                                 (kFileNumberMask + 1));
+    return static_cast<uint32_t>(
+        packed_number_and_path_id / (kFileNumberMask + 1));
   }
   uint64_t GetFileSize() const { return file_size; }
 };
@@ -77,15 +75,12 @@ struct FileSampledStats {
 
 struct FileMetaData {
   FileDescriptor fd;
-  InternalKey smallest;           // Smallest internal key served by table
-  InternalKey largest;            // Largest internal key served by table
-  SequenceNumber smallest_seqno;  // The smallest seqno in this file
-  SequenceNumber largest_seqno;   // The largest seqno in this file
-  GuardMetaData* guard;
-  int allowed_seeks;  // Seeks allowed until compaction
-  uint64_t number;
-  uint64_t file_size;  // File size in bytes
-                       // Needs to be disposed when refs becomes 0.
+  InternalKey smallest;            // Smallest internal key served by table
+  InternalKey largest;             // Largest internal key served by table
+  SequenceNumber smallest_seqno;   // The smallest seqno in this file
+  SequenceNumber largest_seqno;    // The largest seqno in this file
+
+  // Needs to be disposed when refs becomes 0.
   Cache::Handle* table_reader_handle;
 
   FileSampledStats stats;
@@ -98,16 +93,16 @@ struct FileMetaData {
   uint64_t compensated_file_size;
   // These values can mutate, but they can only be read or written from
   // single-threaded LogAndApply thread
-  uint64_t num_entries;     // the number of entries.
-  uint64_t num_deletions;   // the number of deletion entries.
-  uint64_t raw_key_size;    // total uncompressed key size.
-  uint64_t raw_value_size;  // total uncompressed value size.
+  uint64_t num_entries;            // the number of entries.
+  uint64_t num_deletions;          // the number of deletion entries.
+  uint64_t raw_key_size;           // total uncompressed key size.
+  uint64_t raw_value_size;         // total uncompressed value size.
 
   int refs;  // Reference count
 
-  bool being_compacted;       // Is this file undergoing compaction?
-  bool init_stats_from_file;  // true if the data-entry stats of this file
-                              // has initialized from file.
+  bool being_compacted;        // Is this file undergoing compaction?
+  bool init_stats_from_file;   // true if the data-entry stats of this file
+                               // has initialized from file.
 
   bool marked_for_compaction;  // True if client asked us nicely to compact this
                                // file.
@@ -135,12 +130,6 @@ struct FileMetaData {
     largest.DecodeFrom(key);
     smallest_seqno = std::min(smallest_seqno, seqno);
     largest_seqno = std::max(largest_seqno, seqno);
-  }
-
-  void DebugPrint() {
-    printf("    PRINTING FILE META DATA\n");
-    printf("Smallest: %s\n", smallest.DebugString().c_str());
-    printf("Largest: %s\n", largest.DebugString().c_str());
   }
 };
 
@@ -197,10 +186,14 @@ struct GuardMetaData {
 struct FdWithKeyRange {
   FileDescriptor fd;
   FileMetaData* file_metadata;  // Point to all metadata
-  Slice smallest_key;           // slice that contain smallest key
-  Slice largest_key;            // slice that contain largest key
+  Slice smallest_key;    // slice that contain smallest key
+  Slice largest_key;     // slice that contain largest key
 
-  FdWithKeyRange() : fd(), smallest_key(), largest_key() {}
+  FdWithKeyRange()
+      : fd(),
+        smallest_key(),
+        largest_key() {
+  }
 
   FdWithKeyRange(FileDescriptor _fd, Slice _smallest_key, Slice _largest_key,
                  FileMetaData* _file_metadata)
@@ -224,7 +217,7 @@ struct LevelFilesBrief {
 class VersionEdit {
  public:
   VersionEdit() { Clear(); }
-  ~VersionEdit() {}
+  ~VersionEdit() { }
 
   void Clear();
 
@@ -272,15 +265,15 @@ class VersionEdit {
     new_files_.emplace_back(level, std::move(f));
   }
 
-  void AddFile(int level, const FileMetaData& f) {
-    assert(f.smallest_seqno <= f.largest_seqno);
-    new_files_.emplace_back(level, f);
-  }
-
   void AddNewGuard(const GuardMetaData& g) { new_guards_.emplace_back(g); }
 
   void AddCompleteGuard(const GuardMetaData& g) {
     complete_guards_.emplace_back(g);
+  }
+
+  void AddFile(int level, const FileMetaData& f) {
+    assert(f.smallest_seqno <= f.largest_seqno);
+    new_files_.emplace_back(level, f);
   }
 
   // Delete the specified "file" from the specified "level".
@@ -332,9 +325,8 @@ class VersionEdit {
   std::string DebugString(bool hex_key = false) const;
   std::string DebugJSON(int edit_num, bool hex_key = false) const;
 
-  const std::vector<GuardMetaData>& GetNewGuards() { return new_guards_; }
-
-  const std::vector<GuardMetaData>& GetCompleteGuards() {
+  const std::vector<GuardMetaData>& GetNewGuards() const { return new_guards_; }
+  const std::vector<GuardMetaData>& GetCompleteGuards() const {
     return complete_guards_;
   }
 
@@ -370,6 +362,7 @@ class VersionEdit {
   bool is_column_family_drop_;
   bool is_column_family_add_;
   std::string column_family_name_;
+
   std::vector<GuardMetaData> new_guards_;
   std::vector<GuardMetaData> complete_guards_;
 };

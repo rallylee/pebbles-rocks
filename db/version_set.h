@@ -146,7 +146,9 @@ class VersionStorageInfo {
   void UpdateFilesByCompactionPri(CompactionPri compaction_pri);
 
   void GenerateLevel0NonOverlapping();
-  bool level0_non_overlapping() const { return level0_non_overlapping_; }
+  bool level0_non_overlapping() const {
+    return level0_non_overlapping_;
+  }
 
   int MaxInputLevel() const;
   int MaxOutputLevel(bool allow_ingest_behind) const;
@@ -722,7 +724,9 @@ class Version {
   ColumnFamilyData* cfd() const { return cfd_; }
 
   // Return the next Version in the linked list. Used for debug only
-  Version* TEST_Next() const { return next_; }
+  Version* TEST_Next() const {
+    return next_;
+  }
 
   int TEST_refs() const { return refs_; }
 
@@ -802,10 +806,10 @@ class Version {
   const MergeOperator* merge_operator_;
 
   VersionStorageInfo storage_info_;
-  VersionSet* vset_;  // VersionSet to which this Version belongs
-  Version* next_;     // Next version in linked list
-  Version* prev_;     // Previous version in linked list
-  int refs_;          // Number of live refs to this version
+  VersionSet* vset_;            // VersionSet to which this Version belongs
+  Version* next_;               // Next version in linked list
+  Version* prev_;               // Previous version in linked list
+  int refs_;                    // Number of live refs to this version
 
   // A version number that uniquely represents this version. This is
   // used for debugging and logging purposes only.
@@ -979,7 +983,7 @@ class VersionSet {
                             FileMetaData** metadata, ColumnFamilyData** cfd);
 
   // This function doesn't support leveldb SST filenames
-  void GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata);
+  void GetLiveFilesMetaData(std::vector<LiveFileMetaData> *metadata);
 
   void GetObsoleteFiles(std::vector<FileMetaData*>* files,
                         std::vector<std::string>* manifest_filenames,

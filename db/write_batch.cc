@@ -49,11 +49,7 @@
 #include "monitoring/statistics.h"
 #include "rocksdb/merge_operator.h"
 #include "util/coding.h"
-#include "util/murmurhash.h"
 #include "util/string_util.h"
-
-#include "db/version_edit.h"
-#include "db/version_set.h"
 
 namespace rocksdb {
 
@@ -71,95 +67,7 @@ enum ContentFlags : uint32_t {
   HAS_COMMIT = 1 << 7,
   HAS_ROLLBACK = 1 << 8,
   HAS_DELETE_RANGE = 1 << 9,
-  HAS_PUT_GUARD = 1 << 10,
 };
-// TODO(souvik1997): remove pragma once we've finished writing GuardInserter
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-class GuardInserter : public WriteBatch::Handler {
- public:
-  GuardInserter(SequenceNumber sequence, ColumnFamilyMemTables* cf_mems, WriteBatch* new_batch)
-    : sequence_(sequence), cf_mems_(cf_mems), new_batch_(new_batch) {}
-  SequenceNumber sequence_;
-  ColumnFamilyMemTables* cf_mems_;
-  WriteBatch* new_batch_;
-
-
-
-  /*virtual Status PutCF(uint32_t column_family_id, const Slice& key, const Slice& value) {
-    unsigned num_bits = top_level_bits;
-    if (!cf_mems_->Seek(column_family_id)) {
-      return Status::NotFound("failed to seek to column family id");
-    }
-    const auto& cf_handle = cf_mems_->GetColumnFamilyHandle();
-    auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
-
-    // Go through each level, starting from the top and checking if it
-    // is a guard on that level.
-    unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
-    for (unsigned i = 0; i < num_levels; i++) {
-      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
-      if (debug_IsGuardKey(i, key, 0)) {
-        for (unsigned j = i; j < num_levels; j++) {
-          //new_batch_->PutGuard(cf_handle, key, j);
-          guards_vec[j]++;
-        }
-        break;
-      }
-      // Check next level
-      num_bits -= bit_decrement;
-    }
-    return Status::OK();
-  }*/
-
-  /*virtual bool IsGuardKey(unsigned level, const Slice& key) {
-    void* input = (void*)key.data();
-    unsigned num_bits = top_level_bits - (level * bit_decrement);
-    const unsigned int murmur_seed = 42;
-    size_t size = key.size();
-    uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
-    //printf("key: %s\n", (char*) input);
-    //printf("hash_result: %u\n", (unsigned int) hash_result);
-
-    auto mask = bit_mask(num_bits);
-    //printf("mask: %d\n", (int) mask);
-    if ((hash_result & mask) == mask) {
-      return true;
-    }
-    return false;
-  }
-  virtual bool debug_IsGuardKey(unsigned level, const Slice& key,
-                                unsigned num_bits) {
-    void* input = (void*)key.data();
-    const unsigned int murmur_seed = 42;
-    unsigned int hash_result;
-    size_t size = key.size();
-    // MurmurHash3_x86_32(input, size, murmur_seed, &hash_result);
-
-    // auto mask = bit_mask(num_bits);
-    // if ((hash_result & mask) == mask) {
-    return true;
-    //}
-    // return false;
-  }
-
-  unsigned bit_mask(unsigned num_bits) {
-    assert(num_bits > 0 && num_bits < 32);
-    return (1 << num_bits) - 1;
-  }*/
-
- private:
-  const static unsigned top_level_bits = 27;
-  const static int bit_decrement = 2;
-
-  // cf id -> vector of number of guards at each level
-  std::unordered_map<uint32_t, std::vector<int>> num_guards;
-
-  GuardInserter(const GuardInserter&);
-  GuardInserter& operator=(const GuardInserter&);
-};
-
-#pragma GCC diagnostic pop
 
 struct BatchContentClassifier : public WriteBatch::Handler {
   uint32_t content_flags = 0;
@@ -210,7 +118,7 @@ struct BatchContentClassifier : public WriteBatch::Handler {
   }
 };
 
-}  // namespace
+}  // anon namespace
 
 struct SavePoints {
   std::stack<SavePoint> stack;
@@ -218,9 +126,8 @@ struct SavePoints {
 
 WriteBatch::WriteBatch(size_t reserved_bytes, size_t max_bytes)
     : save_points_(nullptr), content_flags_(0), max_bytes_(max_bytes), rep_() {
-  rep_.reserve((reserved_bytes > WriteBatchInternal::kHeader)
-                   ? reserved_bytes
-                   : WriteBatchInternal::kHeader);
+  rep_.reserve((reserved_bytes > WriteBatchInternal::kHeader) ?
+    reserved_bytes : WriteBatchInternal::kHeader);
   rep_.resize(WriteBatchInternal::kHeader);
 }
 
@@ -262,14 +169,16 @@ WriteBatch& WriteBatch::operator=(WriteBatch&& src) {
 
 WriteBatch::~WriteBatch() { delete save_points_; }
 
-WriteBatch::Handler::~Handler() {}
+WriteBatch::Handler::~Handler() { }
 
 void WriteBatch::Handler::LogData(const Slice& blob) {
   // If the user has not specified something to do with blobs, then we ignore
   // them.
 }
 
-bool WriteBatch::Handler::Continue() { return true; }
+bool WriteBatch::Handler::Continue() {
+  return true;
+}
 
 void WriteBatch::Clear() {
   rep_.clear();
@@ -286,7 +195,9 @@ void WriteBatch::Clear() {
   wal_term_point_.clear();
 }
 
-int WriteBatch::Count() const { return WriteBatchInternal::Count(this); }
+int WriteBatch::Count() const {
+  return WriteBatchInternal::Count(this);
+}
 
 uint32_t WriteBatch::ComputeContentFlags() const {
   auto rv = content_flags_.load(std::memory_order_relaxed);
@@ -365,8 +276,7 @@ bool WriteBatch::HasRollback() const {
 
 Status ReadRecordFromWriteBatch(Slice* input, char* tag,
                                 uint32_t* column_family, Slice* key,
-                                Slice* value, Slice* blob, Slice* xid,
-                                uint32_t* level) {
+                                Slice* value, Slice* blob, Slice* xid) {
   assert(key != nullptr && value != nullptr);
   *tag = (*input)[0];
   input->remove_prefix(1);
@@ -442,13 +352,6 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
         return Status::Corruption("bad Rollback XID");
       }
       break;
-    case kTypeGuard:
-      if (!GetLengthPrefixedSlice(input, key) ||
-          !GetVarint32(input, level) ||
-          !GetVarint32(input, column_family)) {
-        return Status::Corruption("bad WriteBatch PutGuard");
-      }
-      break;
     default:
       return Status::Corruption("unknown WriteBatch tag");
   }
@@ -463,7 +366,6 @@ Status WriteBatch::Iterate(Handler* handler) const {
 
   input.remove_prefix(WriteBatchInternal::kHeader);
   Slice key, value, blob, xid;
-  uint32_t level;
   int found = 0;
   Status s;
   while (s.ok() && !input.empty() && handler->Continue()) {
@@ -471,7 +373,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
     uint32_t column_family = 0;  // default
 
     s = ReadRecordFromWriteBatch(&input, &tag, &column_family, &key, &value,
-                                 &blob, &xid, &level);
+                                 &blob, &xid);
     if (!s.ok()) {
       return s;
     }
@@ -537,11 +439,6 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeNoop:
         break;
-      /*case kTypeGuard:
-        assert(content_flags_.load(std::memory_order_relaxed) & (ContentFlags::DEFERRED | ContentFlags::HAS_PUT_GUARD));
-        handler->HandleGuard(column_family, key, level);
-        found++;
-        break;*/
       default:
         return Status::Corruption("unknown WriteBatch tag");
     }
@@ -586,7 +483,6 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
     b->rep_.push_back(static_cast<char>(kTypeColumnFamilyValue));
     PutVarint32(&b->rep_, column_family_id);
   }
-
   PutLengthPrefixedSlice(&b->rep_, key);
   PutLengthPrefixedSlice(&b->rep_, value);
   b->content_flags_.store(
@@ -595,27 +491,10 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
   return save.commit();
 }
 
-Status WriteBatchInternal::PutGuard(WriteBatch* b, uint32_t column_family_id, const Slice& key, const unsigned level) {
-  LocalSavePoint save(b);
-  WriteBatchInternal::SetCount(b, WriteBatchInternal::Count(b) + 1);
-  b->rep_.push_back(static_cast<char>(kTypeGuard));
-  PutLengthPrefixedSlice(&b->rep_, key);
-  PutVarint32(&b->rep_, level);
-  PutVarint32(&b->rep_, column_family_id);
-  b->content_flags_.store(
-      b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT_GUARD,
-      std::memory_order_relaxed);
-  return save.commit();
-}
-
 Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
                        const Slice& value) {
   return WriteBatchInternal::Put(this, GetColumnFamilyID(column_family), key,
                                  value);
-}
-
-Status WriteBatch::PutGuard(ColumnFamilyHandle* column_family, const Slice& key, const unsigned level) {
-    return WriteBatchInternal::PutGuard(this, GetColumnFamilyID(column_family), key, level);
 }
 
 Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
@@ -934,6 +813,7 @@ Status WriteBatch::PopSavePoint() {
 }
 
 class MemTableInserter : public WriteBatch::Handler {
+
   SequenceNumber sequence_;
   ColumnFamilyMemTables* const cf_mems_;
   FlushScheduler* const flush_scheduler_;
@@ -943,7 +823,7 @@ class MemTableInserter : public WriteBatch::Handler {
   uint64_t log_number_ref_;
   DBImpl* db_;
   const bool concurrent_memtable_writes_;
-  bool post_info_created_;
+  bool       post_info_created_;
 
   bool* has_valid_writes_;
   // On some (!) platforms just default creating
@@ -951,46 +831,49 @@ class MemTableInserter : public WriteBatch::Handler {
   // cause memory allocations though unused.
   // Make creation optional but do not incur
   // unique_ptr additional allocation
-  using MemPostInfoMap = std::map<MemTable*, MemTablePostProcessInfo>;
-  using PostMapType = std::aligned_storage<sizeof(MemPostInfoMap)>::type;
+  using
+  MemPostInfoMap = std::map<MemTable*, MemTablePostProcessInfo>;
+  using
+  PostMapType = std::aligned_storage<sizeof(MemPostInfoMap)>::type;
   PostMapType mem_post_info_map_;
   // current recovered transaction we are rebuilding (recovery)
   WriteBatch* rebuilding_trx_;
 
   MemPostInfoMap& GetPostMap() {
     assert(concurrent_memtable_writes_);
-    if (!post_info_created_) {
+    if(!post_info_created_) {
       new (&mem_post_info_map_) MemPostInfoMap();
       post_info_created_ = true;
     }
     return *reinterpret_cast<MemPostInfoMap*>(&mem_post_info_map_);
   }
 
- public:
+public:
   // cf_mems should not be shared with concurrent inserters
-  MemTableInserter(SequenceNumber _sequence, ColumnFamilyMemTables* cf_mems,
-                   FlushScheduler* flush_scheduler,
-                   bool ignore_missing_column_families,
-                   uint64_t recovering_log_number, DB* db,
-                   bool concurrent_memtable_writes,
-                   bool* has_valid_writes = nullptr)
-      : sequence_(_sequence),
-        cf_mems_(cf_mems),
-        flush_scheduler_(flush_scheduler),
-        ignore_missing_column_families_(ignore_missing_column_families),
-        recovering_log_number_(recovering_log_number),
-        log_number_ref_(0),
-        db_(reinterpret_cast<DBImpl*>(db)),
-        concurrent_memtable_writes_(concurrent_memtable_writes),
-        post_info_created_(false),
-        has_valid_writes_(has_valid_writes),
-        rebuilding_trx_(nullptr) {
-    assert(cf_mems_);
+ MemTableInserter(SequenceNumber _sequence, ColumnFamilyMemTables* cf_mems,
+                  FlushScheduler* flush_scheduler,
+                  bool ignore_missing_column_families,
+                  uint64_t recovering_log_number, DB* db,
+                  bool concurrent_memtable_writes,
+                  bool* has_valid_writes = nullptr)
+     : sequence_(_sequence),
+       cf_mems_(cf_mems),
+       flush_scheduler_(flush_scheduler),
+       ignore_missing_column_families_(ignore_missing_column_families),
+       recovering_log_number_(recovering_log_number),
+       log_number_ref_(0),
+       db_(reinterpret_cast<DBImpl*>(db)),
+       concurrent_memtable_writes_(concurrent_memtable_writes),
+       post_info_created_(false),
+       has_valid_writes_(has_valid_writes),
+       rebuilding_trx_(nullptr) {
+   assert(cf_mems_);
   }
 
   ~MemTableInserter() {
     if (post_info_created_) {
-      reinterpret_cast<MemPostInfoMap*>(&mem_post_info_map_)->~MemPostInfoMap();
+      reinterpret_cast<MemPostInfoMap*>
+        (&mem_post_info_map_)->~MemPostInfoMap();
     }
   }
 
@@ -1001,26 +884,11 @@ class MemTableInserter : public WriteBatch::Handler {
 
   SequenceNumber sequence() const { return sequence_; }
 
-  virtual void HandleGuard(uint32_t column_family_id, const Slice& key, unsigned level) {
-    Status s;
-    SeekToColumnFamily(column_family_id, &s);
-    if (cf_mems_->current() == nullptr) {
-      return; // what should you do if the column family doesn't exist?
-    }
-    auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-    auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
-    assert(level < static_cast<unsigned>(cfd->ioptions()->num_levels));
-    Version* version = cfd->current();
-    InternalKey ikey(key, sequence_, kTypeValue);
-    version->AddGuard(ikey, level);
-    //sequence_++;
-  }
-
   void PostProcess() {
     assert(concurrent_memtable_writes_);
     // If post info was not created there is nothing
     // to process and no need to create on demand
-    if (post_info_created_) {
+    if(post_info_created_) {
       for (auto& pair : GetPostMap()) {
         pair.first->BatchPostProcess(pair.second);
       }
@@ -1067,31 +935,10 @@ class MemTableInserter : public WriteBatch::Handler {
     return true;
   }
 
-  /* Changing memtable inserter so that it inserts guards into a version in
-   * addition to adding keys to the memtable.
-   */
-
   virtual Status PutCF(uint32_t column_family_id, const Slice& key,
                        const Slice& value) override {
     if (rebuilding_trx_ != nullptr) {
       WriteBatchInternal::Put(rebuilding_trx_, column_family_id, key, value);
-      auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-
-      unsigned num_bits = top_level_bits;
-      auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
-
-      unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
-      for(unsigned i = 1; i < num_levels; i++) {
-        auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
-        if(IsGuardKey(i, key)) {
-          for(unsigned j = i; j < num_levels; j++) {
-            HandleGuard(column_family_id, key, j);
-            guards_vec[j]++;
-          }
-          break;
-        }
-        num_bits -= bit_decrement;
-      }
       return Status::OK();
     }
 
@@ -1146,26 +993,22 @@ class MemTableInserter : public WriteBatch::Handler {
           mem->Add(sequence_, kTypeValue, key, Slice(merged_value));
           RecordTick(moptions->statistics, NUMBER_KEYS_WRITTEN);
         }
-
-
       }
     }
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
-
-    unsigned num_bits = top_level_bits;
-    auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
-
-    unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
-    for(unsigned i = 1; i < num_levels; i++) {
-      auto& guards_vec = num_guards.emplace(std::make_pair(column_family_id, std::vector<int>(num_levels))).first -> second;
-      if(IsGuardKey(i, key)) {
-        for(unsigned j = i; j < num_levels; j++) {
-          HandleGuard(column_family_id, key, j);
-          guards_vec[j]++;
+    if (cf_handle != nullptr) {
+      unsigned num_bits = top_level_bits;
+      auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
+      unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
+      for(unsigned i = 1; i < num_levels; i++) {
+        if(IsGuardKey(i, key)) {
+          for(unsigned j = i; j < num_levels; j++) {
+            cfd->current()->AddGuard(InternalKey(key, sequence_, kTypeValue), j);
+          }
+          break;
         }
-        break;
+        num_bits -= bit_decrement;
       }
-      num_bits -= bit_decrement;
     }
     // Since all Puts are logged in trasaction logs (if enabled), always bump
     // sequence number. Even if the update eventually fails and does not result
@@ -1175,23 +1018,23 @@ class MemTableInserter : public WriteBatch::Handler {
     return Status::OK();
   }
 
-    unsigned bit_mask(unsigned num_bits) {
-      assert(num_bits > 0 && num_bits < 32);
-      return (1 << num_bits) - 1;
-    }
+  unsigned bit_mask(unsigned num_bits) {
+    assert(num_bits > 0 && num_bits < 32);
+    return (1 << num_bits) - 1;
+  }
 
-    virtual bool IsGuardKey(unsigned level, const Slice& key) {
-      void* input = (void*)key.data();
-      unsigned num_bits = top_level_bits - (level * bit_decrement);
-      const unsigned int murmur_seed = 42;
-      size_t size = key.size();
-      uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
-      auto mask = bit_mask(num_bits);
-      if ((hash_result & mask) == mask) {
-        return true;
-      }
-      return false;
+  virtual bool IsGuardKey(unsigned level, const Slice& key) {
+    void* input = (void*)key.data();
+    unsigned num_bits = top_level_bits - (level * bit_decrement);
+    const unsigned int murmur_seed = 42;
+    size_t size = key.size();
+    uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
+    auto mask = bit_mask(num_bits);
+    if ((hash_result & mask) == mask) {
+      return true;
     }
+    return false;
+  }
 
   Status DeleteImpl(uint32_t column_family_id, const Slice& key,
                     const Slice& value, ValueType delete_type) {
@@ -1472,9 +1315,8 @@ class MemTableInserter : public WriteBatch::Handler {
     return &GetPostMap()[mem];
   }
 
-    const static unsigned top_level_bits = 10;
-    const static int bit_decrement = 1;
-    std::unordered_map<uint32_t, std::vector<int>> num_guards;
+  constexpr static unsigned top_level_bits = 10;
+  constexpr static int bit_decrement = 1;
 };
 
 // This function can only be called in these conditions:
@@ -1542,13 +1384,6 @@ Status WriteBatchInternal::InsertInto(
   if (concurrent_memtable_writes) {
     inserter.PostProcess();
   }
-  return s;
-}
-
-  Status WriteBatchInternal::SetGuards(const WriteBatch* b, WriteBatch* new_b, ColumnFamilyMemTables* memtables) {
-  // Determine the guards.
-  GuardInserter g_inserter(WriteBatchInternal::Sequence(b), memtables, new_b);
-  Status s = b->Iterate(&g_inserter);
   return s;
 }
 

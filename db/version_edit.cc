@@ -193,7 +193,6 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
     PutVarint32(dst, kCompleteGuard);
     PutVarint32(dst, complete_guard.level);
     PutLengthPrefixedSlice(dst, complete_guard.guard_key.Encode());
-    // TODO: how do we encode files inside guards??
   }
 
   // Encode new guards
@@ -201,7 +200,6 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
     PutVarint32(dst, kNewGuard);
     PutVarint32(dst, new_guard.level);
     PutLengthPrefixedSlice(dst, new_guard.guard_key.Encode());
-    // TODO: how do we encode files inside guards??
   }
 
   return true;
@@ -352,7 +350,8 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
         break;
 
       case kCompactPointer:
-        if (GetLevel(&input, &level, &msg) && GetInternalKey(&input, &key)) {
+        if (GetLevel(&input, &level, &msg) &&
+            GetInternalKey(&input, &key)) {
           // we don't use compact pointers anymore,
           // but we should not fail if they are still
           // in manifest
@@ -519,7 +518,8 @@ std::string VersionEdit::DebugString(bool hex_key) const {
     AppendNumberTo(&r, last_sequence_);
   }
   for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-       iter != deleted_files_.end(); ++iter) {
+       iter != deleted_files_.end();
+       ++iter) {
     r.append("\n  DeleteFile: ");
     AppendNumberTo(&r, iter->first);
     r.append(" ");
@@ -580,7 +580,8 @@ std::string VersionEdit::DebugJSON(int edit_num, bool hex_key) const {
     jw.StartArray();
 
     for (DeletedFileSet::const_iterator iter = deleted_files_.begin();
-         iter != deleted_files_.end(); ++iter) {
+         iter != deleted_files_.end();
+         ++iter) {
       jw.StartArrayedObject();
       jw << "Level" << iter->first;
       jw << "FileNumber" << iter->second;

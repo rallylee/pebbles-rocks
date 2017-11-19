@@ -63,10 +63,7 @@ class VersionBuilder::Rep {
   // kLevel0 -- NewestFirstBySeqNo
   // kLevelNon0 -- BySmallestKey
   struct FileComparator {
-    enum SortMethod {
-      kLevel0 = 0,
-      kLevelNon0 = 1,
-    } sort_method;
+    enum SortMethod { kLevel0 = 0, kLevelNon0 = 1, } sort_method;
     const InternalKeyComparator* internal_comparator;
 
     bool operator()(FileMetaData* f1, FileMetaData* f2) const {
@@ -93,7 +90,6 @@ class VersionBuilder::Rep {
   VersionStorageInfo* base_vstorage_;
   int num_levels_;
   LevelState* levels_;
-
   // Store states of levels larger than num_levels_. We do this instead of
   // storing them in levels_ to avoid regression in case there are no files
   // on invalid levels. The version is not consistent if in the end the files
@@ -171,17 +167,15 @@ class VersionBuilder::Rep {
             SequenceNumber external_file_seqno = f2->smallest_seqno;
             if (!(external_file_seqno < f1->largest_seqno ||
                   external_file_seqno == 0)) {
-              fprintf(stderr,
-                      "L0 file with seqno %" PRIu64 " %" PRIu64
-                      " vs. file with global_seqno %" PRIu64 "\n",
+              fprintf(stderr, "L0 file with seqno %" PRIu64 " %" PRIu64
+                              " vs. file with global_seqno %" PRIu64 "\n",
                       f1->smallest_seqno, f1->largest_seqno,
                       external_file_seqno);
               abort();
             }
           } else if (f1->smallest_seqno <= f2->smallest_seqno) {
-            fprintf(stderr,
-                    "L0 files seqno %" PRIu64 " %" PRIu64 " vs. %" PRIu64
-                    " %" PRIu64 "\n",
+            fprintf(stderr, "L0 files seqno %" PRIu64 " %" PRIu64
+                            " vs. %" PRIu64 " %" PRIu64 "\n",
                     f1->smallest_seqno, f1->largest_seqno, f2->smallest_seqno,
                     f2->largest_seqno);
             abort();

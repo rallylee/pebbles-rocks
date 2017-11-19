@@ -74,8 +74,6 @@ class WriteBatchInternal {
   static Status Put(WriteBatch* batch, uint32_t column_family_id,
                     const SliceParts& key, const SliceParts& value);
 
-  static Status PutGuard(WriteBatch* b, uint32_t column_family_id, const Slice& key, const unsigned level);
-
   static Status Delete(WriteBatch* batch, uint32_t column_family_id,
                        const SliceParts& key);
 
@@ -181,8 +179,6 @@ class WriteBatchInternal {
 
   static Status Append(WriteBatch* dst, const WriteBatch* src,
                        const bool WAL_only = false);
-
-  static Status SetGuards(const WriteBatch* b, WriteBatch* new_b, ColumnFamilyMemTables* memtables);
 
   // Returns the byte size of appending a WriteBatch with ByteSize
   // leftByteSize and a WriteBatch with ByteSize rightByteSize
