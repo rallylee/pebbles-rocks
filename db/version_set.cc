@@ -2183,10 +2183,32 @@ VersionStorageInfo::GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
   const auto& result = this->complete_guards_.find(level);
   if (result != this->complete_guards_.end()) {
     assert(level >= 1);
-    return GuardSet(sentinels_.at(level), result->second.begin(),
+    return GuardSet(guard_set_comparator(), sentinels_.at(level), result->second.begin(),
                     result->second.end());
   } else {
-    return GuardSet(sentinels_.at(level));
+    return GuardSet(guard_set_comparator(), sentinels_.at(level));
+  }
+}
+
+VersionStorageInfo::GuardSet VersionStorageInfo::AllGuardsAtLevel(int level) {
+  assert(level < num_levels_);
+  assert(this->sentinels_.find(level) != this->sentinels_.end());
+  const auto& complete_result = this->complete_guards_.find(level);
+  const auto& new_result = this->new_guards_.find(level);
+  if (complete_result != this->complete_guards_.end() && new_result != this->new_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator(), sentinels_.at(level), complete_result->second.begin(),
+                    complete_result->second.end());
+  } else if (complete_result != this->complete_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator(), sentinels_.at(level), complete_result->second.begin(),
+                    complete_result->second.end());
+  } else if (new_result != this->new_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator(), sentinels_.at(level), new_result->second.begin(),
+                    new_result->second.end());
+  } else {
+    return GuardSet(guard_set_comparator(), sentinels_.at(level));
   }
 }
 
