@@ -219,7 +219,7 @@ void Compaction::DebugPrint(bool before) {
     printf("%s", input_version()->DebugString().c_str());
   }
   else {
-    printf("%s", edit_.DebugString().c_str());
+    printf("%s", cfd_->current()->DebugString().c_str());
   }
   printf("----------------------------\n\n");
 }
