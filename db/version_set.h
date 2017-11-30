@@ -461,17 +461,17 @@ class VersionStorageInfo {
    public:
     explicit GuardSetComparator(VersionStorageInfo* parent) : parent_(parent) {}
     VersionStorageInfo* parent_;
-    bool operator()(const GuardMetaData& first, const GuardMetaData& second) {
+    bool operator()(const GuardMetaData& first, const GuardMetaData& second) const {
       assert(parent_ != nullptr);
-      if (first.guard_key.size() == 0 && second.guard_key.size() != 0) {
+      if (first.guard_key().size() == 0 && second.guard_key().size() != 0) {
         return true;
-      } else if (first.guard_key.size() != 0 && second.guard_key.size() == 0) {
+      } else if (first.guard_key().size() != 0 && second.guard_key().size() == 0) {
         return false;
-      } else if (first.guard_key.size() == 0 && second.guard_key.size() == 0) {
+      } else if (first.guard_key().size() == 0 && second.guard_key().size() == 0) {
         return false;
       } else {
-        return parent_->internal_comparator_->Compare(first.guard_key,
-                                                      second.guard_key) < 0;
+        return parent_->internal_comparator_->Compare(first.guard_key(),
+                                                      second.guard_key()) < 0;
       }
     }
   };
@@ -488,127 +488,37 @@ class VersionStorageInfo {
 
  public:
   class GuardSet {
-    class Iterator {
-      std::set<GuardMetaData, GuardSetComparator>::iterator
-          complete_guards_iterator_;
-      std::set<GuardMetaData, GuardSetComparator>::iterator
-          original_complete_guards_iterator_;
-      bool has_complete_guards_iterator_;  // if we switch to c++17 we can use
-                                           // std::optional
-      GuardMetaData& sentinel_;
-      bool on_first_element_;
 
-     public:
-      Iterator(GuardMetaData& sentinel, bool has_complete_guards_iterator,
-               std::set<GuardMetaData, GuardSetComparator>::iterator
-                   complete_guards_iterator)
-          : complete_guards_iterator_(complete_guards_iterator),
-            original_complete_guards_iterator_(complete_guards_iterator),
-            has_complete_guards_iterator_(has_complete_guards_iterator),
-            sentinel_(sentinel),
-            on_first_element_(true) {}
+    std::set<std::reference_wrapper<const GuardMetaData>, GuardSetComparator> entire_set_;
 
-      Iterator(const Iterator& other)
-          : complete_guards_iterator_(other.complete_guards_iterator_),
-            has_complete_guards_iterator_(other.has_complete_guards_iterator_),
-            sentinel_(other.sentinel_),
-            on_first_element_(other.on_first_element_) {}
-
-      Iterator& operator=(const Iterator& other) {
-        this->complete_guards_iterator_ = other.complete_guards_iterator_;
-        this->sentinel_ = other.sentinel_;
-        this->on_first_element_ = other.on_first_element_;
-        this->has_complete_guards_iterator_ =
-            other.has_complete_guards_iterator_;
-        return *this;
-      }
-
-      bool operator==(const Iterator& other) {
-        if (other.has_complete_guards_iterator_ !=
-                this->has_complete_guards_iterator_ ||
-            other.on_first_element_ != this->on_first_element_ ||
-            other.sentinel_ != this->sentinel_) {
-          return false;
-        }
-        if (has_complete_guards_iterator_) {
-          return this->complete_guards_iterator_ ==
-                 other.complete_guards_iterator_;
-        }
-        return true;
-      }
-
-      bool operator!=(const Iterator& other) { return !(*this == other); }
-
-      Iterator& operator++() {  // pre-increment
-        if (on_first_element_) {
-          on_first_element_ = false;
-        } else if (has_complete_guards_iterator_) {
-          complete_guards_iterator_++;
-        }
-        return *this;
-      }
-
-      Iterator operator++(int) {  // post-increment
-        const auto new_iterator = Iterator(*this);
-        ++(*this);
-        return new_iterator;
-      }
-
-      const GuardMetaData& operator*() {
-        if (on_first_element_) {
-          return sentinel_;
-        } else if (has_complete_guards_iterator_) {
-          return *complete_guards_iterator_;
-        }
-        // Undefined behavior
-        assert(false);
-        return *complete_guards_iterator_;
-      }
-
-      Iterator& operator--() {  // pre-decrement
-        if (on_first_element_) {
-          assert(false);
-        }
-        if (complete_guards_iterator_ == original_complete_guards_iterator_) {
-          on_first_element_ = true;
-        } else {
-          complete_guards_iterator_--;
-        }
-        return *this;
-      }
-
-      friend GuardSet;
-    };
-
-    const std::set<GuardMetaData, GuardSetComparator>::iterator
-        complete_guards_begin_;
-    const std::set<GuardMetaData, GuardSetComparator>::iterator
-        complete_guards_end_;
-    bool has_complete_guards_;
-    GuardMetaData& sentinel_;
-
-    GuardSet(GuardMetaData& sentinel,
+    GuardSet(const GuardSetComparator& comparator, GuardMetaData& sentinel,
              std::set<GuardMetaData, GuardSetComparator>::iterator
-                 complete_guards_begin,
+                 primary_guards_begin,
              std::set<GuardMetaData, GuardSetComparator>::iterator
-                 complete_guards_end)
-        : complete_guards_begin_(complete_guards_begin),
-          complete_guards_end_(complete_guards_end),
-          has_complete_guards_(true),
-          sentinel_(sentinel) {}
-
-    GuardSet(GuardMetaData& sentinel)
-        : has_complete_guards_(false), sentinel_(sentinel) {}
-
-   public:
-    Iterator begin() {
-      return Iterator(sentinel_, has_complete_guards_, complete_guards_begin_);
+                 primary_guards_end,
+             std::set<GuardMetaData, GuardSetComparator>::iterator
+                 secondary_guards_begin,
+             std::set<GuardMetaData, GuardSetComparator>::iterator
+                 secondary_guards_end) : entire_set_(comparator) {
+      entire_set_.emplace(std::cref(sentinel));
+      for (auto it = primary_guards_begin; it != primary_guards_end; it++) {
+        assert((*it).guard_key().size() > 0);
+        entire_set_.emplace(std::cref(*it));
+      }
+      for (auto it = secondary_guards_begin; it != secondary_guards_end; it++) {
+        assert((*it).guard_key().size() > 0);
+        entire_set_.emplace(std::cref(*it));
+      }
     }
 
-    Iterator end() {
-      Iterator g(sentinel_, has_complete_guards_, complete_guards_end_);
-      g.on_first_element_ = false;
-      return g;
+   public:
+    typedef std::set<std::reference_wrapper<const GuardMetaData>, GuardSetComparator>::iterator iterator;
+    iterator begin() const {
+      return entire_set_.begin();
+    }
+
+    iterator end() const {
+      return entire_set_.end();
     }
 
     friend VersionStorageInfo;
@@ -627,6 +537,7 @@ class VersionStorageInfo {
   std::unordered_map<int, GuardMetaData> sentinels_;
 
   GuardSet GuardsAtLevel(int level);
+  GuardSet AllGuardsAtLevel(int level);
   const GuardSetComparator& guard_set_comparator() const {
     return guard_set_comparator_;
   }
@@ -1071,15 +982,3 @@ class VersionSet {
 };
 
 }  // namespace rocksdb
-
-// This is really ugly...
-namespace std {
-template <>
-struct iterator_traits<rocksdb::VersionStorageInfo::GuardSet::Iterator> {
-  typedef std::forward_iterator_tag iterator_category;
-  typedef rocksdb::GuardMetaData value_type;
-  typedef rocksdb::GuardMetaData& reference;
-  typedef rocksdb::GuardMetaData* pointer;
-  typedef std::ptrdiff_t difference_type;
-};
-}  // namespace std

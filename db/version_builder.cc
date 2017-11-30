@@ -318,13 +318,11 @@ class VersionBuilder::Rep {
     new_guards_.clear();
     complete_guards_.clear();
     for (const auto& new_guard : new_guards_from_edit) {
-      assert(new_guard.level >= 1);
-      assert(new_guard.level < num_levels_);
+      assert(new_guard.level() >= 1);
       new_guards_.emplace_back(new_guard);
     }
     for (const auto& complete_guard : complete_guards_from_edit) {
-      assert(complete_guard.level >= 1);
-      assert(complete_guard.level < num_levels_);
+      assert(complete_guard.level() >= 1);
       complete_guards_.emplace_back(complete_guard);
     }
   }
@@ -337,8 +335,8 @@ class VersionBuilder::Rep {
     // For convenience
     std::function<bool(const GuardMetaData&, const GuardMetaData&)> equals =
         [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
-      return vstorage->internal_comparator_->Compare(first.guard_key,
-                                                     second.guard_key) == 0;
+      return vstorage->internal_comparator_->Compare(first.guard_key(),
+                                                     second.guard_key()) == 0;
     };
 
     // Make copy
@@ -349,7 +347,7 @@ class VersionBuilder::Rep {
     // in vstorage
 
     for (const GuardMetaData& new_guard : new_guards) {
-      int level = new_guard.level;
+      int level = new_guard.level();
       const auto& new_guards_result = vstorage->new_guards_.find(level);
       if (new_guards_result == vstorage->new_guards_.end()) {
         vstorage->AddNewGuard(new_guard);
@@ -368,7 +366,7 @@ class VersionBuilder::Rep {
     }
 
     for (const GuardMetaData& complete_guard : complete_guards) {
-      int level = complete_guard.level;
+      int level = complete_guard.level();
       const auto& complete_guards_result =
           vstorage->complete_guards_.find(level);
       if (complete_guards_result == vstorage->complete_guards_.end()) {

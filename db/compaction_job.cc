@@ -413,12 +413,14 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
-  for (const auto& guard : cfd->current()->storage_info()->GuardsAtLevel(out_lvl)) {
+  /* TODO: this causes an assert to fail
+  for (const GuardMetaData& guard : cfd->current()->storage_info()->GuardsAtLevel(out_lvl)) {
     // Ignore sentinels
-    if (guard.guard_key.size() > 0) {
-      bounds.emplace_back(guard.guard_key.user_key());
+    if (guard.guard_key().size() > 0) {
+      bounds.emplace_back(guard.guard_key().user_key());
     }
   }
+  */
 
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
@@ -706,29 +708,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     prev_prepare_write_nanos = IOSTATS(prepare_write_nanos);
   }
 
-  const auto output_level = compact_->compaction->output_level();
-  const auto& complete_guards_result = cfd->current()->storage_info()->complete_guards().find(output_level);
-  const auto& new_guards_result = cfd->current()->storage_info()->new_guards().find(output_level);
-  assert(cfd->current()->storage_info()->sentinels_.find(output_level) != cfd->current()->storage_info()->sentinels_.end());
-  // copy guards
-  std::vector<GuardMetaData> output_guards;
-  if (complete_guards_result != cfd->current()->storage_info()->complete_guards().end()) {
-    output_guards = std::vector<GuardMetaData>(complete_guards_result->second.begin(), complete_guards_result->second.end());
-  }
-
-  if (new_guards_result != cfd->current()->storage_info()->new_guards().end()) {
-    // no copy needed
-    const std::vector<GuardMetaData>& new_guards = std::vector<GuardMetaData>(new_guards_result->second.begin(), new_guards_result->second.end());
-    output_guards.insert(output_guards.end(), new_guards.begin(), new_guards.end());
-  }
-
-  std::sort(output_guards.begin(), output_guards.end(), [&](const GuardMetaData& first, const GuardMetaData& second) -> bool {
-      // return true if first < second
-      return cfd->internal_comparator().Compare(first.guard_key, second.guard_key) < 0;
-    });
-
-  output_guards.insert(output_guards.begin(), cfd->current()->storage_info()->sentinels_[output_level]);
-
   const MutableCFOptions* mutable_cf_options =
       sub_compact->compaction->mutable_cf_options();
 
@@ -817,13 +796,18 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   std::string compression_dict;
   compression_dict.reserve(cfd->ioptions()->compression_opts.max_dict_bytes);
 
+  const auto& output_guards = cfd->current()->storage_info()->AllGuardsAtLevel(compact_->compaction->output_level());
   auto guard_iter = output_guards.begin();
   // Advance guard_iter so that it points to a valid guard for the first ikey
   const ParsedInternalKey& initial_parsed_ikey = c_iter->ikey();
   if (IsExtendedValueType(initial_parsed_ikey.type)) {
     InternalKey ikey;
     ikey.SetFrom(initial_parsed_ikey);
-    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(ikey, (*std::next(guard_iter)).guard_key) >= 0) {
+    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end()) {
+      const GuardMetaData& next_guard = *std::next(guard_iter);
+      if (cfd->internal_comparator().Compare(ikey, next_guard.guard_key()) < 0) {
+        break;
+      }
       guard_iter++;
     }
   }
@@ -833,6 +817,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     // returns true.
     const Slice& key = c_iter->key();
     const Slice& value = c_iter->value();
+    //printf("Current key = %s\n", key.data());
 
     // If an end key (exclusive) is specified, check if the current key is
     // >= than it and exit if it is because the iterator is out of its range
@@ -935,7 +920,17 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     if (IsExtendedValueType(next_parsed_ikey.type)) {
       InternalKey next_ikey;
       next_ikey.SetFrom(next_parsed_ikey);
-      while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end() && cfd->internal_comparator().Compare(next_ikey, (*std::next(guard_iter)).guard_key) >= 0) {
+      while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end()) {
+        const GuardMetaData& next_guard = *std::next(guard_iter);
+        const GuardMetaData& current_guard = *guard_iter;
+        if (current_guard.guard_key().size() > 0) {
+          assert(cfd->internal_comparator().Compare(next_ikey, current_guard.guard_key()) >= 0);
+          assert(cfd->internal_comparator().Compare(current_guard.guard_key(), next_guard.guard_key()) < 0);
+        }
+        if (cfd->internal_comparator().Compare(next_ikey, next_guard.guard_key()) < 0) {
+          break;
+        }
+        //printf("Current key %s does not go in current guard %s; next guard = %s\n", next_ikey.DebugString().c_str(), current_guard.guard_key().DebugString().c_str(), next_guard.guard_key().DebugString().c_str());
         guard_iter++;
         output_file_ended = true;
       }

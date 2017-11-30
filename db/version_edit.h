@@ -138,46 +138,56 @@ guard_key is the smallesst key served by the guard file. In each level,
 there can be only one guard starting with a given key, so (level, key)
 uniquely identifies a guard.
 */
-struct GuardMetaData {
+class GuardMetaData {
   /*
     HyperLevelDB populates the files in a guard after the guard is deserialized
     (i.e. the set of files is not ever serialized). The member variables marked
     `mutable` are populated after the guard is read
    */
-  mutable int refs;
-  int level;
-  mutable uint64_t number_segments;
-  InternalKey guard_key;
-  mutable InternalKey smallest;
-  mutable InternalKey largest;
-  mutable std::vector<uint64_t> files;
-  mutable std::vector<FileMetaData*> file_metas;
-
-  GuardMetaData()
-      : refs(0),
-        level(-1),
-        number_segments(0),
-        guard_key(),
-        smallest(),
-        largest() {
-    files.clear();
-    file_metas.clear();
-  }
+ private:
+  int level_;
+  InternalKey guard_key_;
+  mutable InternalKey smallest_;
+  mutable InternalKey largest_;
+  mutable std::vector<FileMetaData*> file_metas_;
 
   void DebugPrint() {
     printf("---------\n");
-    printf("\tSmallest: %s\n", smallest.DebugString().c_str());
-    printf("\tLargest: %s\n", largest.DebugString().c_str());
-    printf("\tNum FilesMetas: %d\n", (int)file_metas.size());
+    printf("\tSmallest: %s\n", smallest().DebugString().c_str());
+    printf("\tLargest: %s\n", largest().DebugString().c_str());
+    printf("\tNum FilesMetas: %d\n", (int)file_metas().size());
     printf("---------\n");
   }
 
+ public:
+
+  GuardMetaData(int level, InternalKey guard_key)
+    : level_(level), guard_key_(guard_key) {
+  }
+
+  GuardMetaData(int level)
+    : level_(level) {
+  }
+
+  GuardMetaData(const GuardMetaData& other)
+    : level_(other.level_), guard_key_(other.guard_key_),
+      smallest_(other.smallest_), largest_(other.largest_),
+      file_metas_(other.file_metas_) {}
+
+  int level() const { return level_; }
+  const InternalKey& guard_key() const { return guard_key_; }
+  const InternalKey& largest() const { return largest_; }
+  const InternalKey& smallest() const { return smallest_; }
+  const std::vector<FileMetaData*>& file_metas() const { return file_metas_; }
+
   bool operator==(GuardMetaData& other) {
-    return other.level == this->level &&
-           other.guard_key.rep() == this->guard_key.rep();
+    return other.level() == this->level() &&
+      other.guard_key_.rep() == this->guard_key_.rep();
   }
 
   bool operator!=(GuardMetaData& other) { return !(*this == other); }
+
+  friend class VersionStorageInfo;
 };
 
 // A compressed copy of file meta data that just contain minimum data needed

@@ -191,15 +191,15 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
   // Encode complete guards
   for (const GuardMetaData& complete_guard : complete_guards_) {
     PutVarint32(dst, kCompleteGuard);
-    PutVarint32(dst, complete_guard.level);
-    PutLengthPrefixedSlice(dst, complete_guard.guard_key.Encode());
+    PutVarint32(dst, complete_guard.level());
+    PutLengthPrefixedSlice(dst, complete_guard.guard_key().Encode());
   }
 
   // Encode new guards
   for (const GuardMetaData& new_guard : new_guards_) {
     PutVarint32(dst, kNewGuard);
-    PutVarint32(dst, new_guard.level);
-    PutLengthPrefixedSlice(dst, new_guard.guard_key.Encode());
+    PutVarint32(dst, new_guard.level());
+    PutLengthPrefixedSlice(dst, new_guard.guard_key().Encode());
   }
 
   return true;
@@ -296,7 +296,6 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
   FileMetaData f;
   Slice str;
   InternalKey key;
-  GuardMetaData guard;
 
   while (msg == nullptr && GetVarint32(&input, &tag)) {
     switch (tag) {
@@ -458,9 +457,9 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
         break;
 
       case kCompleteGuard: {
-        if (GetLevel(&input, &guard.level, &msg) &&
-            GetInternalKey(&input, &guard.guard_key)) {
-          complete_guards_.push_back(guard);
+        if (GetLevel(&input, &level, &msg) &&
+            GetInternalKey(&input, &key)) {
+          complete_guards_.emplace_back(level, key);
         } else {
           msg = "complete-guard entry";
         }
@@ -468,9 +467,9 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       }
 
       case kNewGuard: {
-        if (GetLevel(&input, &guard.level, &msg) &&
-            GetInternalKey(&input, &guard.guard_key)) {
-          new_guards_.push_back(guard);
+        if (GetLevel(&input, &level, &msg) &&
+            GetInternalKey(&input, &key)) {
+          new_guards_.emplace_back(level, key);
         } else {
           msg = "new-guard entry";
         }

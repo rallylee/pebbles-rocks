@@ -101,16 +101,30 @@ class FilePicker {
 
   void SetUpIterator() {
     assert(curr_level_ < storage_info_->num_non_empty_levels());
-    GuardMetaData fake_guard;
-    fake_guard.guard_key = ikey_;
+    GuardMetaData fake_guard(1, ikey_);
     VersionStorageInfo::GuardSet guards =
         storage_info_->GuardsAtLevel(curr_level_);
-    auto guard = std::lower_bound(guards.begin(), guards.end(), fake_guard,
-                                  storage_info_->guard_set_comparator());
-    --guard;
+    /* = std::lower_bound(guards.begin(), guards.end(), fake_guard,
+                                                         storage_info_->guard_set_comparator());*/
+
+    printf("Looking for ikey %s\n", ikey_.DebugString().c_str());
+    VersionStorageInfo::GuardSet::iterator guard_containing_key_iter;
+    for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
+      const GuardMetaData& current_guard = *guard_iter;
+      printf("current guard: %s (%lu)\n",  ((InternalKey)current_guard.guard_key()).DebugString().c_str(), current_guard.guard_key().size());
+      if (storage_info_->guard_set_comparator()(fake_guard, current_guard)) {
+        break;
+      }
+      guard_containing_key_iter = guard_iter;
+    }
+
+
     // This should always be safe
-    file_meta_data_iterator_ = (*guard).file_metas.begin();
-    file_meta_data_iterator_end_ = (*guard).file_metas.end();
+    const GuardMetaData& guard = *guard_containing_key_iter;
+    printf("Opening guard %s with %lu files\n", guard.guard_key().DebugString().c_str(), guard.file_metas().size());
+    file_meta_data_iterator_ = guard.file_metas().begin();
+    file_meta_data_iterator_end_ = guard.file_metas().end();
+    //printf("Fake key: %s, ret key: %s (%lu)\n", ikey_.rep()->c_str(), ((InternalKey)guard.guard_key()).rep()->c_str(), guard.guard_key().size());
   }
 
   FileMetaData* GetNextFile() {
@@ -133,6 +147,7 @@ class FilePicker {
 
       f = *file_meta_data_iterator_;
       file_meta_data_iterator_++;
+      printf("Current file %p %s..%s", f, f->smallest.DebugString().c_str(), f->largest.DebugString().c_str());
       if (f->smallest.size() >= 8) {
         const Slice& smallest_key = f->smallest.user_key();
         if (user_comparator_->Compare(smallest_key, user_key) > 0) {
@@ -168,8 +183,8 @@ class FilePicker {
   int curr_level_;
   InternalKey ikey_;
   bool search_ended_;
-  std::vector<FileMetaData*>::iterator file_meta_data_iterator_;
-  std::vector<FileMetaData*>::iterator file_meta_data_iterator_end_;
+  std::vector<FileMetaData*>::const_iterator file_meta_data_iterator_;
+  std::vector<FileMetaData*>::const_iterator file_meta_data_iterator_end_;
   const Comparator* const user_comparator_;
 };
 }  // anonymous namespace
@@ -811,8 +826,7 @@ VersionStorageInfo::VersionStorageInfo(
     sentinels_ = ref_vstorage->sentinels_;
   }
   for (int i = 0; i < num_levels_; i++) {
-    GuardMetaData g;
-    g.level = i;
+    GuardMetaData g(i);
     if (sentinels_.find(i) == sentinels_.end()) {
       sentinels_.emplace(std::make_pair(i, g));
     }
@@ -956,48 +970,117 @@ void VersionStorageInfo::GenerateLevelFilesBrief() {
 }
 
 void VersionStorageInfo::PopulateGuards() {
+  //printf("--- BEGIN PopulateGuards()\n");
+  std::set<FileMetaData*> populated_files;
   for (int level = 0; level < num_non_empty_levels_; level++) {
-    // printf("Populating guards on level %d\n", level);
+    //printf("BEGIN Populating guards on level %d\n", level);
     GuardSet guards = GuardsAtLevel(level);
     const std::vector<FileMetaData*>& files = files_[level];
     for (auto guard_iter = guards.begin(); guard_iter != guards.end();
          guard_iter++) {
-      (*guard_iter).file_metas.clear();
-      auto next_guard = guard_iter;
-      next_guard++;
-      bool reached_end = next_guard == guards.end();
+      const GuardMetaData& guard = *guard_iter;
+      guard.file_metas_.clear();
+      guard.largest_.Clear();
+      guard.smallest_.Clear();
+      std::next(guard_iter);
+      auto next_guard_iter = std::next(guard_iter);
+      bool reached_end = next_guard_iter == guards.end();
+      bool at_beginning = guard_iter == guards.begin();
+      if (!at_beginning) {
+        assert(guard.guard_key().size() > 0);
+      }
+      if (!reached_end) {
+        const GuardMetaData& next_guard = *next_guard_iter;
+        assert(next_guard.guard_key().size() > 0);
+      }
+      //printf("Populating guard %s\n", ((InternalKey)guard.guard_key()).DebugString().c_str());
       // O(n^2) since files_ may not be sorted
-      for (size_t i = 0; i < files.size(); i++) {
-        const auto& file_metadata = files[i];
+      for (FileMetaData* file_metadata : files) {
+        //printf("Current file: %p ([%s]...[%s])\n", file_metadata, file_metadata->smallest.DebugString().c_str(), file_metadata->largest.DebugString().c_str());
         InternalKey smallest_internal_key = file_metadata->smallest;
+        assert(smallest_internal_key.size() > 0);
         InternalKey largest_internal_key = file_metadata->largest;
-        if (reached_end ||
-            internal_comparator_->Compare(smallest_internal_key,
-                                          (*next_guard).guard_key) > 0) {
-          // printf("Adding file %lu/%lu to guard on level %d\n", i,
-          // files.size(), level);
-          for (const auto& y : (*guard_iter).file_metas) {
-            if (y == file_metadata) {
-              assert(false);
-            }
+        assert(largest_internal_key.size() > 0);
+        if (!reached_end) {
+          const GuardMetaData& next_guard = *next_guard_iter;
+          // Cannot be a sentinel
+          if (next_guard.guard_key().size() == 0) {
+            //printf("This should not be a sentinel!\n");
           }
-          (*guard_iter).file_metas.emplace_back(file_metadata);
-          if ((*guard_iter).smallest.size() == 0 ||
-              internal_comparator_->Compare(smallest_internal_key,
-                                            (*guard_iter).smallest) < 0) {
-            (*guard_iter).smallest = smallest_internal_key;
-          }
-          if ((*guard_iter).largest.size() == 0 ||
-              internal_comparator_->Compare((*guard_iter).largest,
-                                            largest_internal_key) < 0) {
-            (*guard_iter).largest = largest_internal_key;
+          assert(next_guard.guard_key().size() > 0);
+          next_guard.guard_key().Encode();
+          if (internal_comparator_->Compare(largest_internal_key, next_guard.guard_key()) >= 0) {
+            //printf("Skipped putting file %p in guard %s bc largest key %s is larger than next guard %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str(), largest_internal_key.DebugString().c_str(), ((InternalKey)next_guard.guard_key()).DebugString().c_str());
+            continue;
           }
         }
+        if (guard.guard_key().size() > 0) {
+          smallest_internal_key.Encode();
+          if (internal_comparator_->Compare(guard.guard_key(), smallest_internal_key) > 0) {
+            //printf("Skipped putting file %p in guard %s bc is larger than smallest key %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str(),  smallest_internal_key.DebugString().c_str());
+            continue;
+          }
+        }
+        assert(populated_files.find(file_metadata) == populated_files.end());
+        // //printf("Adding file %lu/%lu to guard on level %d\n", i,
+        // files.size(), level);
+        for (const auto& y : guard.file_metas()) {
+          if (y == file_metadata) {
+            assert(false);
+          }
+        }
+        //printf("Put file %p in guard %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str());
+        populated_files.emplace(file_metadata);
+        guard.file_metas_.emplace_back(file_metadata);
+        if (guard.smallest().size() == 0 ||
+            internal_comparator_->Compare(smallest_internal_key,
+                                          guard.smallest()) < 0) {
+          guard.smallest_ = smallest_internal_key;
+        }
+        if (guard.largest().size() == 0 ||
+            internal_comparator_->Compare(guard.largest(),
+                                          largest_internal_key) < 0) {
+          guard.largest_ = largest_internal_key;
+        }
+      }
+
+    }
+    //printf("END Populating guards on level %d\n", level);
+  }
+
+  // Check consistency
+
+  for (int level = 0; level < num_non_empty_levels_; level++) {
+    GuardSet guards = GuardsAtLevel(level);
+    //printf("Checking consistency of level %d\n", level);
+    for (auto guard_iter = ++guards.begin(); guard_iter != guards.end(); guard_iter++) {
+      const GuardMetaData& current = *guard_iter;
+      assert(current.guard_key().size() > 0);
+      const GuardMetaData& prev = *std::prev(guard_iter);
+      if (current.file_metas().size() > 0) {
+        assert(current.smallest().size() > 0);
+        //printf("current.guard_key() = %s, current.smallest() = %s\n", current.guard_key().DebugString().c_str(), current.smallest().DebugString().c_str());
+        assert(internal_comparator_->Compare(current.guard_key(), current.smallest()) <= 0);
+      }
+      if (prev.file_metas().size() > 0) {
+        assert(prev.largest().size() > 0);
+        //printf("current.guard_key() = %s, prev.largest() = %s\n", current.guard_key().DebugString().c_str(), prev.largest().DebugString().c_str());
+        assert(internal_comparator_->Compare(prev.largest(), current.guard_key()) < 0);
       }
     }
-
-    // printf("Finished populating guards on level %d\n", level);
+    const std::vector<FileMetaData*>& files = files_[level];
+    for (auto file : files) {
+      if (populated_files.find(file) == populated_files.end()) {
+        printf("File %p not put in a guard!\n", file);
+        printf("file->largest = %s, file->smallest = %s\n", file->largest.DebugString().c_str(), file->smallest.DebugString().c_str());
+        for (const GuardMetaData& g : GuardsAtLevel(level)) {
+          printf("  Guard %s\n", ((InternalKey)g.guard_key()).DebugString().c_str());
+        }
+        assert(false);
+      }
+    }
   }
+  //printf("--- END PopulateGuards()\n");
 }
 
 void Version::PrepareApply(
@@ -2137,7 +2220,7 @@ void VersionStorageInfo::CalculateBaseBytes(const ImmutableCFOptions& ioptions,
 }
 
 void VersionStorageInfo::AddNewGuard(const GuardMetaData& g) {
-  int level = g.level;
+  int level = g.level();
   assert(level >= 1 && level < num_levels_);
   if (this->new_guards_.find(level) == this->new_guards_.end()) {
     this->new_guards_.emplace(
@@ -2150,7 +2233,7 @@ void VersionStorageInfo::AddNewGuard(const GuardMetaData& g) {
 }
 
 void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
-  int level = g.level;
+  int level = g.level();
   assert(level >= 1 && level < num_levels_);
   if (this->complete_guards_.find(level) == this->complete_guards_.end()) {
     this->complete_guards_.emplace(
@@ -2168,8 +2251,8 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
          it != new_guards_result->second.end();) {
       auto here = it++;
       const auto& existing_new_guard = *here;
-      if (internal_comparator_->Compare(existing_new_guard.guard_key,
-                                        g.guard_key) == 0) {
+      if (internal_comparator_->Compare(existing_new_guard.guard_key(),
+                                        g.guard_key()) == 0) {
         new_guards_result->second.erase(existing_new_guard);
         // printf("Removed existing new guard\n");
       }
@@ -2181,12 +2264,36 @@ VersionStorageInfo::GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
   assert(level < num_levels_);
   assert(this->sentinels_.find(level) != this->sentinels_.end());
   const auto& result = this->complete_guards_.find(level);
+  std::set<GuardMetaData, GuardSetComparator> dummy(guard_set_comparator_);
   if (result != this->complete_guards_.end()) {
     assert(level >= 1);
-    return GuardSet(sentinels_.at(level), result->second.begin(),
-                    result->second.end());
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), result->second.begin(),
+                    result->second.end(), dummy.begin(), dummy.end());
   } else {
-    return GuardSet(sentinels_.at(level));
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), dummy.begin(), dummy.end(), dummy.begin(), dummy.end());
+  }
+}
+
+VersionStorageInfo::GuardSet VersionStorageInfo::AllGuardsAtLevel(int level) {
+  assert(level < num_levels_);
+  assert(this->sentinels_.find(level) != this->sentinels_.end());
+  const auto& complete_result = this->complete_guards_.find(level);
+  const auto& new_result = this->new_guards_.find(level);
+  std::set<GuardMetaData, GuardSetComparator> dummy(guard_set_comparator_);
+  if (complete_result != this->complete_guards_.end() && new_result != this->new_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), complete_result->second.begin(),
+                    complete_result->second.end(), new_result->second.begin(), new_result->second.end());
+  } else if (complete_result != this->complete_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), complete_result->second.begin(),
+                    complete_result->second.end(), dummy.begin(), dummy.end());
+  } else if (new_result != this->new_guards_.end()) {
+    assert(level >= 1);
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), new_result->second.begin(),
+                    new_result->second.end(), dummy.begin(), dummy.end());
+  } else {
+    return GuardSet(guard_set_comparator_, sentinels_.at(level), dummy.begin(), dummy.end(), dummy.begin(), dummy.end());
   }
 }
 
@@ -2225,10 +2332,7 @@ uint64_t VersionStorageInfo::EstimateLiveDataSize() const {
 }
 
 void Version::AddGuard(InternalKey ikey, int level) {
-  GuardMetaData g;
-  g.guard_key = ikey;
-  g.level = level;
-  storage_info()->AddNewGuard(g);
+  storage_info()->AddNewGuard(GuardMetaData(level, ikey));
 }
 
 void Version::AddLiveFiles(std::vector<FileDescriptor>* live) {
