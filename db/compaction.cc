@@ -274,6 +274,14 @@ bool Compaction::IsTrivialMove() const {
   // assert inputs_.size() == 1
 
   for (const auto& file : inputs_.front().files) {
+    GuardMetaData fake_guard;
+    fake_guard.guard_key = file->smallest;
+    VersionStorageInfo::GuardSet guards = input_vstorage_->GuardsAtLevel(output_level_);
+    auto guard = std::upper_bound(guards.begin(), guards.end(), fake_guard, input_vstorage_->guard_set_comparator());
+    if (guard != guards.end() && input_vstorage_->InternalComparator()->Compare(file->largest, (*guard).guard_key) <= 0) {
+      return false;
+    }
+
     std::vector<FileMetaData*> file_grand_parents;
     if (output_level_ + 1 >= number_levels_) {
       continue;
