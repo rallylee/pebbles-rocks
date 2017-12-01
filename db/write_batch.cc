@@ -1003,7 +1003,7 @@ public:
       for(unsigned i = 1; i < num_levels; i++) {
         if(IsGuardKey(i, key)) {
           for(unsigned j = i; j < num_levels; j++) {
-            cfd->current()->AddGuard(InternalKey(key, sequence_, kTypeValue), j);
+            cfd->current()->AddGuard(InternalKey(key, kMaxSequenceNumber, kValueTypeForSeek), j);
           }
           break;
         }
