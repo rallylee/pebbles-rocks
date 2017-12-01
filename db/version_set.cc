@@ -107,11 +107,11 @@ class FilePicker {
     /* = std::lower_bound(guards.begin(), guards.end(), fake_guard,
                                                          storage_info_->guard_set_comparator());*/
 
-    printf("Looking for ikey %s\n", ikey_.DebugString().c_str());
+    //printf("Looking for ikey %s\n", ikey_.DebugString().c_str());
     VersionStorageInfo::GuardSet::iterator guard_containing_key_iter;
     for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
       const GuardMetaData& current_guard = *guard_iter;
-      printf("current guard: %s (%lu)\n",  ((InternalKey)current_guard.guard_key()).DebugString().c_str(), current_guard.guard_key().size());
+      //printf("current guard: %s (%lu)\n",  ((InternalKey)current_guard.guard_key()).DebugString().c_str(), current_guard.guard_key().size());
       if (storage_info_->guard_set_comparator()(fake_guard, current_guard)) {
         break;
       }
@@ -121,7 +121,7 @@ class FilePicker {
 
     // This should always be safe
     const GuardMetaData& guard = *guard_containing_key_iter;
-    printf("Opening guard %s with %lu files\n", guard.guard_key().DebugString().c_str(), guard.file_metas().size());
+    //printf("Opening guard %s with %lu files\n", guard.guard_key().DebugString().c_str(), guard.file_metas().size());
     file_meta_data_iterator_ = guard.file_metas().begin();
     file_meta_data_iterator_end_ = guard.file_metas().end();
     //printf("Fake key: %s, ret key: %s (%lu)\n", ikey_.rep()->c_str(), ((InternalKey)guard.guard_key()).rep()->c_str(), guard.guard_key().size());
@@ -147,7 +147,7 @@ class FilePicker {
 
       f = *file_meta_data_iterator_;
       file_meta_data_iterator_++;
-      printf("Current file %p %s..%s", f, f->smallest.DebugString().c_str(), f->largest.DebugString().c_str());
+      //printf("Current file %p %s..%s", f, f->smallest.DebugString().c_str(), f->largest.DebugString().c_str());
       if (f->smallest.size() >= 8) {
         const Slice& smallest_key = f->smallest.user_key();
         if (user_comparator_->Compare(smallest_key, user_key) > 0) {
