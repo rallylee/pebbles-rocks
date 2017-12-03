@@ -413,14 +413,13 @@ void CompactionJob::GenSubcompactionBoundaries() {
   std::vector<Slice> bounds;
   int start_lvl = c->start_level();
   int out_lvl = c->output_level();
-  /* TODO: this causes an assert to fail
-  for (const GuardMetaData& guard : cfd->current()->storage_info()->GuardsAtLevel(out_lvl)) {
+
+  for (const GuardMetaData& guard : c->output_guards()) {
     // Ignore sentinels
-    if (guard.guard_key().size() > 0) {
+    if (!guard.isSentinel()) {
       bounds.emplace_back(guard.guard_key().user_key());
     }
   }
-  */
 
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
