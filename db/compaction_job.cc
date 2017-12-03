@@ -1282,11 +1282,9 @@ Status CompactionJob::InstallCompactionResults(
   }
 
   // Convert new guards to complete guards
-  ColumnFamilyData* cfd = compaction->column_family_data();
-  const auto& new_guards_result = cfd->current()->storage_info()->new_guards().find(compaction->output_level());
-  if (new_guards_result != cfd->current()->storage_info()->new_guards().end()) {
-    for (const auto& new_guard : new_guards_result->second) {
-      compaction->edit()->AddCompleteGuard(new_guard);
+  for (const GuardMetaData& guard : compaction->output_guards()) {
+    if (!guard.isSentinel()) {
+      compaction->edit()->AddCompleteGuard(guard);
     }
   }
 

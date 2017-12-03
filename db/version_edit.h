@@ -175,6 +175,7 @@ class GuardMetaData {
       file_metas_(other.file_metas_) {}
 
   int level() const { return level_; }
+  bool isSentinel() const { return this->guard_key().size() == 0; }
   const InternalKey& guard_key() const { return guard_key_; }
   const InternalKey& largest() const { return largest_; }
   const InternalKey& smallest() const { return smallest_; }
