@@ -240,7 +240,6 @@ bool Compaction::InputCompressionMatchesOutput() const {
 }
 
 bool Compaction::IsTrivialMove() const {
-  return false;
   // Avoid a move if there is lots of overlapping grandparent data.
   // Otherwise, the move could create a parent file that will require
   // a very expensive merge later on.
@@ -278,11 +277,25 @@ bool Compaction::IsTrivialMove() const {
 
   for (const auto& file : inputs_.front().files) {
     GuardMetaData fake_guard(1, file->smallest);
+    // printf("-- tm file [%s]...[%s]\n", file->smallest.DebugString().c_str(), file->largest.DebugString().c_str());
     auto guard_iter = std::upper_bound(output_guards_.begin(), output_guards_.end(), fake_guard, input_vstorage_->guard_set_comparator());
     if (guard_iter != output_guards_.end()) {
       const GuardMetaData& guard = *guard_iter;
-      if (input_vstorage_->InternalComparator()->Compare(file->largest, guard.guard_key()) <= 0) {
+      --guard_iter;
+      const GuardMetaData& prev_guard = *guard_iter;
+      // printf("-- tm found guard [%s]...[%s]\n", prev_guard.guard_key().DebugString().c_str(), guard.guard_key().DebugString().c_str());
+      if (!prev_guard.isSentinel()) {
+        assert(input_vstorage_->InternalComparator()->Compare(file->smallest, prev_guard.guard_key()) >= 0);
+      }
+      if (input_vstorage_->InternalComparator()->Compare(file->largest, guard.guard_key()) >= 0) {
         return false;
+      }
+    } else {
+      assert(output_guards_.begin() != output_guards_.end()); // guards should never be empty
+      --guard_iter;
+      const GuardMetaData& prev_guard = *guard_iter;
+      if (!prev_guard.isSentinel()) {
+        assert(input_vstorage_->InternalComparator()->Compare(file->smallest, prev_guard.guard_key()) >= 0);
       }
     }
 
