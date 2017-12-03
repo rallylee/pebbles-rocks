@@ -796,14 +796,13 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   std::string compression_dict;
   compression_dict.reserve(cfd->ioptions()->compression_opts.max_dict_bytes);
 
-  const auto& output_guards = cfd->current()->storage_info()->AllGuardsAtLevel(compact_->compaction->output_level());
-  auto guard_iter = output_guards.begin();
+  auto guard_iter = compact_->compaction->output_guards().begin();
   // Advance guard_iter so that it points to a valid guard for the first ikey
   const ParsedInternalKey& initial_parsed_ikey = c_iter->ikey();
   if (IsExtendedValueType(initial_parsed_ikey.type)) {
     InternalKey ikey;
     ikey.SetFrom(initial_parsed_ikey);
-    while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end()) {
+    while (guard_iter != compact_->compaction->output_guards().end() && std::next(guard_iter) != compact_->compaction->output_guards().end()) {
       const GuardMetaData& next_guard = *std::next(guard_iter);
       if (cfd->internal_comparator().Compare(ikey, next_guard.guard_key()) < 0) {
         break;
@@ -812,7 +811,7 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
   }
 
-  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() && guard_iter != output_guards.end()) {
+  while (status.ok() && !cfd->IsDropped() && c_iter->Valid() && guard_iter != compact_->compaction->output_guards().end()) {
     // Invariant: c_iter.status() is guaranteed to be OK if c_iter->Valid()
     // returns true.
     const Slice& key = c_iter->key();
@@ -915,12 +914,17 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
       input_status = input->status();
       output_file_ended = true;
     }
+    const ParsedInternalKey& current_parsed_ikey = c_iter->ikey();
+    InternalKey current_ikey;
+    current_ikey.SetFrom(current_parsed_ikey);
     c_iter->Next();
     const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
     if (IsExtendedValueType(next_parsed_ikey.type)) {
       InternalKey next_ikey;
       next_ikey.SetFrom(next_parsed_ikey);
-      while (guard_iter != output_guards.end() && std::next(guard_iter) != output_guards.end()) {
+      //printf("Current ikey = %s, next ikey = %s, (<): %d\n", current_ikey.DebugString().c_str(), next_ikey.DebugString().c_str(), cfd->internal_comparator().Compare(next_ikey, current_ikey));
+      assert(cfd->internal_comparator().Compare(next_ikey, current_ikey) >= 0);
+      while (guard_iter != compact_->compaction->output_guards().end() && std::next(guard_iter) != compact_->compaction->output_guards().end()) {
         const GuardMetaData& next_guard = *std::next(guard_iter);
         const GuardMetaData& current_guard = *guard_iter;
         if (current_guard.guard_key().size() > 0) {

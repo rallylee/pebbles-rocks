@@ -181,6 +181,10 @@ class InternalKey {
                                                kValueTypeForSeek));
   }
 
+  bool operator==(const InternalKey& other) const {
+    return other.rep_ == rep_;
+  }
+
   // sets the internal key to be smaller or equal to all internal keys with this
   // user key
   void SetMinPossibleForUserKey(const Slice& _user_key) {

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "db/column_family.h"
+#include "db/guard_set.h"
 #include "rocksdb/compaction_filter.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
@@ -170,7 +171,8 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       is_full_compaction_(IsFullCompaction(vstorage, inputs_)),
       is_manual_compaction_(_manual_compaction),
       is_trivial_move_(false),
-      compaction_reason_(_compaction_reason) {
+      compaction_reason_(_compaction_reason),
+      output_guards_(vstorage->AllGuardsAtLevel(output_level_)) {
   MarkFilesBeingCompacted(true);
   if (is_manual_compaction_) {
     compaction_reason_ = CompactionReason::kManualCompaction;
@@ -276,9 +278,8 @@ bool Compaction::IsTrivialMove() const {
 
   for (const auto& file : inputs_.front().files) {
     GuardMetaData fake_guard(1, file->smallest);
-    VersionStorageInfo::GuardSet guards = input_vstorage_->GuardsAtLevel(output_level_);
-    auto guard_iter = std::upper_bound(guards.begin(), guards.end(), fake_guard, input_vstorage_->guard_set_comparator());
-    if (guard_iter != guards.end()) {
+    auto guard_iter = std::upper_bound(output_guards_.begin(), output_guards_.end(), fake_guard, input_vstorage_->guard_set_comparator());
+    if (guard_iter != output_guards_.end()) {
       const GuardMetaData& guard = *guard_iter;
       if (input_vstorage_->InternalComparator()->Compare(file->largest, guard.guard_key()) <= 0) {
         return false;

@@ -180,9 +180,9 @@ class GuardMetaData {
   const InternalKey& smallest() const { return smallest_; }
   const std::vector<FileMetaData*>& file_metas() const { return file_metas_; }
 
-  bool operator==(GuardMetaData& other) {
+  bool operator==(const GuardMetaData& other) const {
     return other.level() == this->level() &&
-      other.guard_key_.rep() == this->guard_key_.rep();
+      other.guard_key_ == this->guard_key_;
   }
 
   bool operator!=(GuardMetaData& other) { return !(*this == other); }
@@ -275,9 +275,17 @@ class VersionEdit {
     new_files_.emplace_back(level, std::move(f));
   }
 
-  void AddNewGuard(const GuardMetaData& g) { new_guards_.emplace_back(g); }
+  void AddNewGuard(const GuardMetaData& g) {
+    if (std::find(new_guards_.begin(), new_guards_.end(), g) != new_guards_.end()) {
+      return;
+    }
+    new_guards_.emplace_back(g);
+  }
 
   void AddCompleteGuard(const GuardMetaData& g) {
+    if (std::find(complete_guards_.begin(), complete_guards_.end(), g) != complete_guards_.end()) {
+      return;
+    }
     complete_guards_.emplace_back(g);
   }
 

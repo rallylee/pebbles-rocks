@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
+#include "db/guard_set.h"
 #include "db/version_set.h"
 #include "options/cf_options.h"
 #include "util/arena.h"
@@ -245,6 +246,8 @@ class Compaction {
 
   uint64_t MaxInputFileCreationTime() const;
 
+  const GuardSet& output_guards() const { return output_guards_; }
+
  private:
   // mark (or clear) all files that are being compacted
   void MarkFilesBeingCompacted(bool mark_as_compacted);
@@ -319,6 +322,8 @@ class Compaction {
 
   // Reason for compaction
   CompactionReason compaction_reason_;
+
+  GuardSet output_guards_;
 };
 
 // Utility function

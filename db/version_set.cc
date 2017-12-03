@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 #include "db/compaction.h"
+#include "db/guard_set.h"
 #include "db/internal_stats.h"
 #include "db/log_reader.h"
 #include "db/log_writer.h"
@@ -102,13 +103,13 @@ class FilePicker {
   void SetUpIterator() {
     assert(curr_level_ < storage_info_->num_non_empty_levels());
     GuardMetaData fake_guard(1, ikey_);
-    VersionStorageInfo::GuardSet guards =
+    GuardSet guards =
         storage_info_->GuardsAtLevel(curr_level_);
-    /* = std::lower_bound(guards.begin(), guards.end(), fake_guard,
-                                                         storage_info_->guard_set_comparator());*/
+    auto guard_iter = std::lower_bound(guards.begin(), guards.end(), fake_guard,
+                                                         storage_info_->guard_set_comparator());
 
-    //printf("Looking for ikey %s\n", ikey_.DebugString().c_str());
-    VersionStorageInfo::GuardSet::iterator guard_containing_key_iter;
+    GuardSet::iterator guard_containing_key_iter = --guard_iter;
+    /*
     for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
       const GuardMetaData& current_guard = *guard_iter;
       //printf("current guard: %s (%lu)\n",  ((InternalKey)current_guard.guard_key()).DebugString().c_str(), current_guard.guard_key().size());
@@ -117,6 +118,7 @@ class FilePicker {
       }
       guard_containing_key_iter = guard_iter;
     }
+    */
 
 
     // This should always be safe
@@ -799,7 +801,7 @@ VersionStorageInfo::VersionStorageInfo(
       estimated_compaction_needed_bytes_(0),
       finalized_(false),
       force_consistency_checks_(_force_consistency_checks),
-      guard_set_comparator_(this) {
+      guard_set_comparator_(internal_comparator_) {
   if (ref_vstorage != nullptr) {
     accumulated_file_size_ = ref_vstorage->accumulated_file_size_;
     accumulated_raw_key_size_ = ref_vstorage->accumulated_raw_key_size_;
@@ -2260,7 +2262,7 @@ void VersionStorageInfo::AddCompleteGuard(const GuardMetaData& g) {
   }
 }
 
-VersionStorageInfo::GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
+GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
   assert(level < num_levels_);
   assert(this->sentinels_.find(level) != this->sentinels_.end());
   const auto& result = this->complete_guards_.find(level);
@@ -2274,7 +2276,7 @@ VersionStorageInfo::GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
   }
 }
 
-VersionStorageInfo::GuardSet VersionStorageInfo::AllGuardsAtLevel(int level) {
+GuardSet VersionStorageInfo::AllGuardsAtLevel(int level) {
   assert(level < num_levels_);
   assert(this->sentinels_.find(level) != this->sentinels_.end());
   const auto& complete_result = this->complete_guards_.find(level);
