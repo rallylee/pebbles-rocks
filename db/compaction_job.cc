@@ -916,14 +916,20 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
     const ParsedInternalKey& current_parsed_ikey = c_iter->ikey();
     InternalKey current_ikey;
-    current_ikey.SetFrom(current_parsed_ikey);
+    bool set_current_ikey = false;
+    if (IsExtendedValueType(current_parsed_ikey.type)) {
+      current_ikey.SetFrom(current_parsed_ikey);
+      set_current_ikey = true;
+    }
     c_iter->Next();
     const ParsedInternalKey& next_parsed_ikey = c_iter->ikey();
     if (IsExtendedValueType(next_parsed_ikey.type)) {
       InternalKey next_ikey;
       next_ikey.SetFrom(next_parsed_ikey);
       //printf("Current ikey = %s, next ikey = %s, (<): %d\n", current_ikey.DebugString().c_str(), next_ikey.DebugString().c_str(), cfd->internal_comparator().Compare(next_ikey, current_ikey));
-      assert(cfd->internal_comparator().Compare(next_ikey, current_ikey) >= 0);
+      if (set_current_ikey) {
+        assert(cfd->internal_comparator().Compare(next_ikey, current_ikey) >= 0);
+      }
       while (guard_iter != compact_->compaction->output_guards().end() && std::next(guard_iter) != compact_->compaction->output_guards().end()) {
         const GuardMetaData& next_guard = *std::next(guard_iter);
         const GuardMetaData& current_guard = *guard_iter;
