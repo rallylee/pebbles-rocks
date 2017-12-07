@@ -150,6 +150,8 @@ class Compaction {
   // "output".
   void Summary(char* output, int len);
 
+  bool FileTriviallyMovable(const FileMetaData* const file) const;
+
   // Return the score that was used to pick this compaction run.
   double score() const { return score_; }
 
