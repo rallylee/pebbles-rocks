@@ -188,6 +188,10 @@ class GuardMetaData {
 
   bool operator!=(GuardMetaData& other) { return !(*this == other); }
 
+  int compare(GuardMetaData& other) {
+    return this->guard_key().user_key().compare(other.guard_key().user_key());
+  }
+
   friend class VersionStorageInfo;
 };
 

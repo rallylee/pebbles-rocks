@@ -1718,6 +1718,7 @@ bool Version::Unref() {
 }
 
 bool Version::CorrectVersionStructure() {
+  printf("    CHECKING VERSION STRUCTURE\n");
   if(!CorrectGuardStructure()) {
     return false;
   }
@@ -1726,49 +1727,51 @@ bool Version::CorrectVersionStructure() {
       return false;
     }
   }
+  printf("    --------------------------\n\n");
   return true;
 }
 
 bool Version::CorrectGuardStructure() {
   try {
     for (int i = 0; i < this->cfd()->NumberLevels() - 1; i++) {
-      const std::set<GuardMetaData, GuardSetComparator> cur_level = (this->storage_info()->new_guards()).at(i);
-      const std::set<GuardMetaData, GuardSetComparator> next_level = (this->storage_info()->new_guards()).at(i + 1);
-      auto cur_iter = cur_level.begin();
-      auto next_iter = next_level.begin();
-      bool found = false;
-      while (cur_iter != cur_level.end()) {
-        GuardMetaData cur_guard = *cur_iter;
-        while (next_iter != next_level.end()) {
-          if ((*next_iter).guard_key().user_key().compare(cur_guard.guard_key().user_key()) == 0) {
+      GuardSet cur_guards = this->storage_info()->AllGuardsAtLevel(i);
+      GuardSet next_guards = this->storage_info()->AllGuardsAtLevel(i + 1);
+      if(cur_guards.size() == 1 && next_guards.size() == 1) {
+        return true; //return true if it's only the sentinels at each of the levels
+      }
+      auto cur_iter = cur_guards.begin();
+      auto next_iter = next_guards.begin();
+      while(cur_iter != cur_guards.end()) {
+        GuardMetaData cur_guard = cur_iter.operator*().get();
+        bool found = false;
+        while(next_iter != next_guards.end()) {
+          GuardMetaData next_guard = next_iter.operator*().get();
+          if(cur_guard.compare(next_guard) == 0) {
             found = true;
             break;
           }
-          if (!found) {
-            return false;
-          }
           next_iter++;
         }
+        if(!found) {
+          printf("guard %s in level %d but not level %d\n", cur_guard.guard_key().user_key().ToString().c_str(), i, i+1);
+          return false;
+        }
+        cur_iter++;
       }
     }
   }
   catch (...) {
-    printf("CorrectVersion didn't work\n");
+    printf("CorrectGuardStructure didn't work\n");
   }
   return true;
 }
 
 bool Version::CorrectLevelStructure(int level) {
   try {
-    GuardMetaData &cur_sentinel = this->storage_info()->sentinels_.at(level);
-    const std::set<GuardMetaData, GuardSetComparator> &cur_guards = this->storage_info()->new_guards().at(level);
-    if (!CorrectGuardMetaData(cur_sentinel)) {
-      printf("level sentinel %s\n", cur_sentinel.guard_key().user_key().ToString().c_str());
-      return false;
-    }
-    for (GuardMetaData gmd : cur_guards) {
+    auto all_guards = this->storage_info()->AllGuardsAtLevel(level);
+    for (GuardMetaData gmd : all_guards) {
       if (!CorrectGuardMetaData(gmd)) {
-        printf("level guard %s\n", gmd.guard_key().user_key().ToString().c_str());
+        printf("level guard %s\n", gmd.guard_key().DebugString().c_str());
         return false;
       }
     }
@@ -1781,22 +1784,24 @@ bool Version::CorrectLevelStructure(int level) {
 
 bool Version::CorrectGuardMetaData(GuardMetaData gmd) {
   try {
-    Slice guard_lowest = gmd.smallest().user_key();
-    Slice guard_highest = gmd.largest().user_key();
+    InternalKey guard_lowest = gmd.smallest();
+    InternalKey guard_highest = gmd.largest();
     std::vector<FileMetaData *> files = gmd.file_metas();
     for (FileMetaData *fmd : files) {
-      printf("checking: %s, %s\n", fmd->smallest.user_key().ToString().c_str(),
+      printf("checking file (smallest, largest): %s, %s\n", fmd->smallest.user_key().ToString().c_str(),
              fmd->largest.user_key().ToString().c_str());
-      if (fmd->smallest.user_key().compare(guard_lowest) < 0) {
+      if (this->storage_info()->InternalComparator()->Compare(fmd-> smallest, guard_lowest) < 0) {
+        printf("Smallest: GuardMetaData %s, File %s\n", gmd.smallest().user_key().ToString().c_str(), fmd->smallest.user_key().ToString().c_str());
         return false; //if file's smallest key smaller than guard's
       }
-      if (fmd->largest.user_key().compare(guard_highest) > 0) {
+      if (this->storage_info()->InternalComparator()->Compare(fmd->largest, guard_highest) > 0) {
+        printf("Largest: GuardMetaData %s, File %s\n", gmd.largest().user_key().ToString().c_str(), fmd->largest.user_key().ToString().c_str());
         return false; //if file's largest key greater than guard's
       }
     }
   }
   catch (...) {
-    printf("CcorrectGuardMetaData didn't work\n");
+    printf("CorrectGuardMetaData didn't work\n");
   }
   return true;
 }

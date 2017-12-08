@@ -73,6 +73,10 @@ class GuardSet {
     return entire_set_.end();
   }
 
+  int size() {
+      return entire_set_.size();
+  }
+
   friend VersionStorageInfo;
 };
 
