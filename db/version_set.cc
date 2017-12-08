@@ -1742,11 +1742,11 @@ bool Version::CorrectGuardStructure() {
       auto cur_iter = cur_guards.begin();
       auto next_iter = next_guards.begin();
       while(cur_iter != cur_guards.end()) {
-        GuardMetaData cur_guard = cur_iter.operator*().get();
+        const GuardMetaData& cur_guard = *cur_iter;
         bool found = false;
         while(next_iter != next_guards.end()) {
-          GuardMetaData next_guard = next_iter.operator*().get();
-          if(cur_guard.compare(next_guard) == 0) {
+          const GuardMetaData& next_guard = *next_iter;
+          if(cur_guard.guard_key() == next_guard.guard_key()) {
             found = true;
             break;
           }
@@ -1769,7 +1769,7 @@ bool Version::CorrectGuardStructure() {
 bool Version::CorrectLevelStructure(int level) {
   try {
     auto all_guards = this->storage_info()->AllGuardsAtLevel(level);
-    for (GuardMetaData gmd : all_guards) {
+    for (const GuardMetaData& gmd : all_guards) {
       if (!CorrectGuardMetaData(gmd)) {
         printf("level guard %s\n", gmd.guard_key().DebugString().c_str());
         return false;
@@ -1782,7 +1782,7 @@ bool Version::CorrectLevelStructure(int level) {
   return true;
 }
 
-bool Version::CorrectGuardMetaData(GuardMetaData gmd) {
+bool Version::CorrectGuardMetaData(const GuardMetaData& gmd) {
   try {
     InternalKey guard_lowest = gmd.smallest();
     InternalKey guard_highest = gmd.largest();

@@ -540,7 +540,7 @@ class Version {
   bool CorrectVersionStructure();
   bool CorrectGuardStructure();
   bool CorrectLevelStructure(int level);
-  bool CorrectGuardMetaData(GuardMetaData g);
+  bool CorrectGuardMetaData(const GuardMetaData& g);
 
   // Add all files listed in the current version to *live.
   void AddLiveFiles(std::vector<FileDescriptor>* live);
