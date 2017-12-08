@@ -537,6 +537,11 @@ class Version {
   // and return true. Otherwise, return false.
   bool Unref();
 
+  bool CorrectVersionStructure();
+  bool CorrectGuardStructure();
+  bool CorrectLevelStructure(int level);
+  bool CorrectGuardMetaData(GuardMetaData g);
+
   // Add all files listed in the current version to *live.
   void AddLiveFiles(std::vector<FileDescriptor>* live);
 

@@ -1717,6 +1717,90 @@ bool Version::Unref() {
   return false;
 }
 
+bool Version::CorrectVersionStructure() {
+  if(!CorrectGuardStructure()) {
+    return false;
+  }
+  for(int i = 0; i < this->cfd()->NumberLevels(); i++) {
+    if(!CorrectLevelStructure(i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Version::CorrectGuardStructure() {
+  try {
+    for (int i = 0; i < this->cfd()->NumberLevels() - 1; i++) {
+      const std::set<GuardMetaData, GuardSetComparator> cur_level = (this->storage_info()->new_guards()).at(i);
+      const std::set<GuardMetaData, GuardSetComparator> next_level = (this->storage_info()->new_guards()).at(i + 1);
+      auto cur_iter = cur_level.begin();
+      auto next_iter = next_level.begin();
+      bool found = false;
+      while (cur_iter != cur_level.end()) {
+        GuardMetaData cur_guard = *cur_iter;
+        while (next_iter != next_level.end()) {
+          if ((*next_iter).guard_key().user_key().compare(cur_guard.guard_key().user_key()) == 0) {
+            found = true;
+            break;
+          }
+          if (!found) {
+            return false;
+          }
+          next_iter++;
+        }
+      }
+    }
+  }
+  catch (...) {
+    printf("CorrectVersion didn't work\n");
+  }
+  return true;
+}
+
+bool Version::CorrectLevelStructure(int level) {
+  try {
+    GuardMetaData &cur_sentinel = this->storage_info()->sentinels_.at(level);
+    const std::set<GuardMetaData, GuardSetComparator> &cur_guards = this->storage_info()->new_guards().at(level);
+    if (!CorrectGuardMetaData(cur_sentinel)) {
+      printf("level sentinel %s\n", cur_sentinel.guard_key().user_key().ToString().c_str());
+      return false;
+    }
+    for (GuardMetaData gmd : cur_guards) {
+      if (!CorrectGuardMetaData(gmd)) {
+        printf("level guard %s\n", gmd.guard_key().user_key().ToString().c_str());
+        return false;
+      }
+    }
+  }
+  catch (...) {
+    printf("CorrectLevel didn't work\n");
+  }
+  return true;
+}
+
+bool Version::CorrectGuardMetaData(GuardMetaData gmd) {
+  try {
+    Slice guard_lowest = gmd.smallest().user_key();
+    Slice guard_highest = gmd.largest().user_key();
+    std::vector<FileMetaData *> files = gmd.file_metas();
+    for (FileMetaData *fmd : files) {
+      printf("checking: %s, %s\n", fmd->smallest.user_key().ToString().c_str(),
+             fmd->largest.user_key().ToString().c_str());
+      if (fmd->smallest.user_key().compare(guard_lowest) < 0) {
+        return false; //if file's smallest key smaller than guard's
+      }
+      if (fmd->largest.user_key().compare(guard_highest) > 0) {
+        return false; //if file's largest key greater than guard's
+      }
+    }
+  }
+  catch (...) {
+    printf("CcorrectGuardMetaData didn't work\n");
+  }
+  return true;
+}
+
 bool VersionStorageInfo::OverlapInLevel(int level,
                                         const Slice* smallest_user_key,
                                         const Slice* largest_user_key) {
