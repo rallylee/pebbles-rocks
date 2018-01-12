@@ -10,6 +10,7 @@
 
 ## Setting up YCSB
 - Download YCSB from https://github.com/souvik1997/YCSB and checkout the `rocksdb` branch
+- Set maximum open files to at least 2048 with `ulimit -n`.
 - Run `mvn -nsu -pl com.yahoo.ycsb:rocksdb-binding -am clean package`
-- Load the data with `python2 ./bin/ycsb load rocksdb -s -P workloads/workloada -p rocksdb.dir=/tmp/ycsb-rocksdb-data`
-- Run the workload with `python2 ./bin/ycsb run rocksdb -s -P workloads/workloada -p rocksdb.dir=/tmp/ycsb-rocksdb-data`
+- Load the data with `python2 ./bin/ycsb load rocksdb -s -P workloads/workloada -P large.dat -p rocksdb.dir=/tmp/ycsb-rocksdb-data`
+- Run the workload with `python2 ./bin/ycsb run rocksdb -s -P workloads/workloada -P large.dat -p rocksdb.dir=/tmp/ycsb-rocksdb-data`
