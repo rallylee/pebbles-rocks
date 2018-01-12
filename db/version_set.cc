@@ -980,9 +980,10 @@ void VersionStorageInfo::GenerateLevelFilesBrief() {
   }
 }
 
-void VersionStorageInfo::PopulateGuards() {
+void VersionStorageInfo::PopulateGuards(const ImmutableCFOptions& ioptions) {
   //printf("--- BEGIN PopulateGuards()\n");
   std::set<FileMetaData*> populated_files;
+
   for (int level = 0; level < num_non_empty_levels_; level++) {
     //printf("BEGIN Populating guards on level %d\n", level);
     GuardSet guards = GuardsAtLevel(level);
@@ -1063,12 +1064,15 @@ void VersionStorageInfo::PopulateGuards() {
 
   // Check consistency
 
+  std::ostringstream output;
   for (int level = 0; level < num_non_empty_levels_; level++) {
     GuardSet guards = GuardsAtLevel(level);
     //printf("Checking consistency of level %d\n", level);
+    output << "Guards at level " << level << ": ";
     for (auto guard_iter = ++guards.begin(); guard_iter != guards.end(); guard_iter++) {
       const GuardMetaData& current = *guard_iter;
       assert(current.guard_key().size() > 0);
+      output << "[" << current.guard_key().DebugString() << " with " << current.file_metas().size() << " files] ";
       const GuardMetaData& prev = *std::prev(guard_iter);
       if (current.file_metas().size() > 0) {
         assert(current.smallest().size() > 0);
@@ -1092,7 +1096,9 @@ void VersionStorageInfo::PopulateGuards() {
         assert(false);
       }
     }
+    output << std::endl;
   }
+  ROCKS_LOG_INFO(ioptions.info_log, "Populated guards: \n%s", output.str().c_str());
   //printf("--- END PopulateGuards()\n");
 }
 
@@ -1107,7 +1113,7 @@ void Version::PrepareApply(
   storage_info_.GenerateLevelFilesBrief();
   storage_info_.GenerateLevel0NonOverlapping();
   storage_info_.GenerateBottommostFiles();
-  storage_info_.PopulateGuards();
+  storage_info_.PopulateGuards(*cfd_->ioptions());
 }
 
 bool Version::MaybeInitializeFileMetaData(FileMetaData* file_meta) {

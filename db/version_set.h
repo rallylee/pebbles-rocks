@@ -153,7 +153,7 @@ class VersionStorageInfo {
   void GenerateLevelFilesBrief();
 
   // Populate guards from files_
-  void PopulateGuards();
+  void PopulateGuards(const ImmutableCFOptions& ioptions);
   // Sort all files for this version based on their file size and
   // record results in files_by_compaction_pri_. The largest files are listed
   // first.
@@ -401,7 +401,7 @@ class VersionStorageInfo {
   bool RangeMightExistAfterSortedRun(const Slice& smallest_key,
                                      const Slice& largest_key, int last_level,
                                      int last_l0_idx);
-  
+
   void AddNewGuard(const GuardMetaData& g);
 
  private:
