@@ -1085,17 +1085,21 @@ class MemTableInserter : public WriteBatch::Handler {
     }
     auto cf_handle = cf_mems_->GetColumnFamilyHandle();
     if (cf_handle != nullptr) {
-      unsigned num_bits = top_level_bits;
+      void* input = (void*)key.data();
+      const unsigned int murmur_seed = 42;
+      size_t size = key.size();
+      uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
+      uint64_t bitmask = (1 << top_level_bits) - 1;
       auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
       unsigned num_levels = static_cast<unsigned>(cfd->ioptions()->num_levels);
       for(unsigned i = 1; i < num_levels; i++) {
-        if(IsGuardKey(i, key)) {
+        if ((hash_result & bitmask) == bitmask) {
           for(unsigned j = i; j < num_levels; j++) {
             cfd->current()->AddGuard(InternalKey(key, kMaxSequenceNumber, kValueTypeForSeek), j);
           }
           break;
         }
-        num_bits -= bit_decrement;
+        bitmask = bitmask >> bit_decrement;
       }
     }
     // Since all Puts are logged in trasaction logs (if enabled), always bump
@@ -1114,19 +1118,6 @@ class MemTableInserter : public WriteBatch::Handler {
   unsigned bit_mask(unsigned num_bits) {
     assert(num_bits > 0 && num_bits < 32);
     return (1 << num_bits) - 1;
-  }
-
-  virtual bool IsGuardKey(unsigned level, const Slice& key) {
-    void* input = (void*)key.data();
-    unsigned num_bits = top_level_bits - (level * bit_decrement);
-    const unsigned int murmur_seed = 42;
-    size_t size = key.size();
-    uint64_t hash_result = MurmurHash64A(input, size, murmur_seed);
-    auto mask = bit_mask(num_bits);
-    if ((hash_result & mask) == mask) {
-      return true;
-    }
-    return false;
   }
 
   Status DeleteImpl(uint32_t column_family_id, const Slice& key,
