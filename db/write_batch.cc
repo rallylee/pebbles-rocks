@@ -36,6 +36,8 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include <fstream>
+#include <chrono>
 
 #include "db/column_family.h"
 #include "db/db_impl.h"
@@ -1435,8 +1437,8 @@ class MemTableInserter : public WriteBatch::Handler {
     return &GetPostMap()[mem];
   }
 
-  constexpr static unsigned top_level_bits = 10;
-  constexpr static int bit_decrement = 1;
+  constexpr static unsigned top_level_bits = 27;
+  constexpr static int bit_decrement = 2;
 };
 
 // This function can only be called in these conditions:
