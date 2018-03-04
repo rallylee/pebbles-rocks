@@ -73,7 +73,7 @@ class GuardSet {
     return entire_set_.end();
   }
 
-  int size() {
+  int size() const {
       return entire_set_.size();
   }
 

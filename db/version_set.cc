@@ -1217,7 +1217,7 @@ void VersionStorageInfo::PopulateGuards(const ImmutableCFOptions& ioptions) {
         for (const GuardMetaData& g : GuardsAtLevel(level)) {
           printf("  Guard %s\n", ((InternalKey)g.guard_key()).DebugString().c_str());
         }
-        assert(false);
+        //assert(false);
       }
     }
     output << std::endl;
@@ -2670,7 +2670,7 @@ void Version::AddLiveFiles(std::vector<FileDescriptor>* live) {
   }
 }
 
-std::string Version::DebugString(bool hex, bool print_stats) const {
+std::string Version::DebugString(bool hex, bool print_stats) {
   std::string r;
   for (int level = 0; level < storage_info_.num_levels_; level++) {
     // E.g.,
@@ -2685,24 +2685,35 @@ std::string Version::DebugString(bool hex, bool print_stats) const {
     r.append(" --- version# ");
     AppendNumberTo(&r, version_number_);
     r.append(" ---\n");
-    const std::vector<FileMetaData*>& files = storage_info_.files_[level];
-    for (size_t i = 0; i < files.size(); i++) {
-      r.push_back(' ');
-      AppendNumberTo(&r, files[i]->fd.GetNumber());
-      r.push_back(':');
-      AppendNumberTo(&r, files[i]->fd.GetFileSize());
-      r.append("[");
-      r.append(files[i]->smallest.DebugString(hex));
-      r.append(" .. ");
-      r.append(files[i]->largest.DebugString(hex));
-      r.append("]");
-      if (print_stats) {
-        r.append("(");
-        r.append(ToString(
-            files[i]->stats.num_reads_sampled.load(std::memory_order_relaxed)));
-        r.append(")");
-      }
+    r.append("Numbers of Guards at Level: ");
+    const GuardSet cur_guards = storage_info_.AllGuardsAtLevel(level);
+    AppendNumberTo(&r, cur_guards.size());
+    r.append("\n");
+    auto cur_iter = cur_guards.begin();
+    while(cur_iter != cur_guards.end()) {
+      const GuardMetaData& cur_guard = *cur_iter;
+      r.append("Guard Key: ");
+      AppendNumberTo(&r, cur_guard.guard_key());
       r.append("\n");
+      std::vector<FileMetaData *> files = cur_guard.file_metas();
+      for (FileMetaData *fmd : files) {
+        r.push_back(' ');
+        AppendNumberTo(&r, fmd->fd.GetNumber());
+        r.push_back(':');
+        AppendNumberTo(&r, fmd->fd.GetFileSize());
+        r.append("[");
+        r.append(fmd->smallest.DebugString(hex));
+        r.append(" .. ");
+        r.append(fmd->largest.DebugString(hex));
+        r.append("]");
+        if (print_stats) {
+          r.append("(");
+          r.append(ToString(
+              fmd->stats.num_reads_sampled.load(std::memory_order_relaxed)));
+          r.append(")");
+        }
+        r.append("\n");
+      }
     }
   }
   return r;

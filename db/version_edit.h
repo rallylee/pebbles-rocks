@@ -131,6 +131,10 @@ struct FileMetaData {
     smallest_seqno = std::min(smallest_seqno, seqno);
     largest_seqno = std::max(largest_seqno, seqno);
   }
+
+  //void DebugPrint(bool with_median_and_max) {
+    //std::vector<uint64_t> file_sizes =
+  //}
 };
 
 /*

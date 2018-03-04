@@ -1,0 +1,102 @@
+Initializing RocksDB Options from the specified file
+Initializing RocksDB Options from command-line flags
+Keys:       16 bytes each
+Values:     1024 bytes each (512 bytes after compression)
+Entries:    2500000
+Prefix:    0 bytes
+Keys per prefix:    0
+RawSize:    2479.6 MB (estimated)
+FileSize:   1258.9 MB (estimated)
+Write rate: 0 bytes/second
+Read rate: 0 ops/second
+Compression: NoCompression
+Memtablerep: skip_list
+Perf Level: 1
+WARNING: Assertions are enabled; benchmarks unnecessarily slow
+------------------------------------------------
+Initializing RocksDB Options from the specified file
+Initializing RocksDB Options from command-line flags
+DB path: [/mnt/ssd/pebblesdbtest-1000]
+fillrandom   :      35.666 micros/op 28038 ops/sec;   27.8 MB/s
+
+
+** Compaction Stats [default] **
+Level    Files   Size     Score Read(GB)  Rn(GB) Rnp1(GB) Write(GB) Wnew(GB) Moved(GB) W-Amp Rd(MB/s) Wr(MB/s) Comp(sec) Comp(cnt) Avg(sec) KeyIn KeyDrop
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+  L0      2/0    7.63 MB   0.5      0.0     0.0      0.0       2.5      2.5       0.0   1.0      0.0    308.8         8       659    0.012       0      0
+  L1     10/0   569.64 MB   2.2     23.9     2.4     21.5      23.4      1.9       0.0   9.6    322.6    315.8        76        49    1.550     24M   511K
+  L2     23/0    1.15 GB   0.5      3.0     0.9      2.1       2.7      0.6       0.5   3.1    305.3    280.6        10        14    0.707   2996K   241K
+ Sum     35/0    1.71 GB   0.0     26.9     3.3     23.6      28.6      5.0       0.5  11.6    292.9    311.5        94       722    0.130     27M   753K
+ Int      0/0    0.00 KB   0.0     26.9     3.3     23.6      28.6      5.0       0.5  11.7    292.9    311.4        94       718    0.131     27M   753K
+Uptime(secs): 89.2 total, 89.1 interval
+Flush(GB): cumulative 2.455, interval 2.440
+AddFile(GB): cumulative 0.000, interval 0.000
+AddFile(Total Files): cumulative 0, interval 0
+AddFile(L0 Files): cumulative 0, interval 0
+AddFile(Keys): cumulative 0, interval 0
+Cumulative compaction: 28.60 GB write, 328.40 MB/s write, 26.89 GB read, 308.75 MB/s read, 94.0 seconds
+Interval compaction: 28.58 GB write, 328.63 MB/s write, 26.89 GB read, 309.12 MB/s read, 94.0 seconds
+Stalls(count): 139 level0_slowdown, 109 level0_slowdown_with_compaction, 0 level0_numfiles, 0 level0_numfiles_with_compaction, 0 stop for pending_compaction_bytes, 0 slowdown for pending_compaction_bytes, 75 memtable_compaction, 0 memtable_slowdown, interval 214 total count
+
+** File Read Latency Histogram By Level [default] **
+
+** DB Stats **
+Uptime(secs): 89.2 total, 89.1 interval
+Cumulative writes: 2500K writes, 2500K keys, 2500K commit groups, 1.0 writes per commit group, ingest: 2.46 GB, 28.24 MB/s
+Cumulative WAL: 2500K writes, 0 syncs, 2500000.00 writes per sync, written: 2.46 GB, 28.24 MB/s
+Cumulative stall: 00:01:15.285 H:M:S, 84.4 percent
+Interval writes: 2482K writes, 2482K keys, 2482K commit groups, 1.0 writes per commit group, ingest: 2499.63 MB, 28.07 MB/s
+Interval WAL: 2482K writes, 0 syncs, 2482060.00 writes per sync, written: 2.44 MB, 28.07 MB/s
+Interval stall: 00:01:15.285 H:M:S, 84.5 percent
+
+
+--- level 0 --- version# 730 ---
+Numbers of Guards at Level: 1
+ 1777:3996331['00000000000002763030303030303030' seq:2492402, type:1 .. '00000000002623953030303030303030' seq:2493203, type:1](0)
+ 1767:4001615['000000000000006E3030303030303030' seq:2489723, type:1 .. '000000000026248E3030303030303030' seq:2488131, type:1](0)
+--- level 1 --- version# 730 ---
+Numbers of Guards at Level: 2
+ 1764:67573367['00000000000000053030303030303030' seq:2410536, type:1 .. '000000000006C2D63030303030303030' seq:2253308, type:1](0)
+ 1765:14728032['000000000006C2D83030303030303030' seq:2163796, type:1 .. '00000000000762393030303030303030' seq:2205963, type:1](0)
+ 1768:67573623['00000000000762523030303030303030' seq:2445202, type:1 .. '000000000010516B3030303030303030' seq:2168752, type:1](0)
+ 1769:67577324['00000000001051763030303030303030' seq:1942336, type:1 .. '000000000015B8CC3030303030303030' seq:2108423, type:1](0)
+ 1770:67573519['000000000015B8D13030303030303030' seq:2312009, type:1 .. '00000000001E05953030303030303030' seq:2177534, type:1](0)
+ 1771:67576887['00000000001E05963030303030303030' seq:1703036, type:1 .. '00000000001F91ED3030303030303030' seq:2401431, type:1](0)
+ 1772:67576942['00000000001F91EE3030303030303030' seq:2067638, type:1 .. '00000000002163743030303030303030' seq:2466048, type:1](0)
+ 1773:67576985['00000000002163753030303030303030' seq:2124478, type:1 .. '000000000023A2593030303030303030' seq:1480811, type:1](0)
+ 1774:67576895['000000000023A25A3030303030303030' seq:1580792, type:1 .. '0000000000252F3A3030303030303030' seq:0, type:1](0)
+ 1775:41975480['0000000000252F3C3030303030303030' seq:1341918, type:1 .. '000000000026259F3030303030303030' seq:2258274, type:1](0)
+--- level 2 --- version# 730 ---
+Numbers of Guards at Level: 3
+ 1566:67576911['00000000000000003030303030303030' seq:0, type:1 .. '000000000001AC933030303030303030' seq:0, type:1](0)
+ 1582:67576900['000000000001AC943030303030303030' seq:0, type:1 .. '0000000000035AA13030303030303030' seq:0, type:1](0)
+ 1599:67576935['0000000000035AA23030303030303030' seq:0, type:1 .. '00000000000505CD3030303030303030' seq:0, type:1](0)
+ 1601:33916054['00000000000505CE3030303030303030' seq:0, type:1 .. '000000000005E18C3030303030303030' seq:0, type:1](0)
+ 1270:40384434['000000000005E18E3030303030303030' seq:0, type:1 .. '0000000000073B9E3030303030303030' seq:0, type:1](0)
+ 1454:5500268['0000000000073B9F3030303030303030' seq:0, type:1 .. '000000000007624A3030303030303030' seq:0, type:1](0)
+ 1675:67576932['000000000007624B3030303030303030' seq:0, type:1 .. '000000000008FBE73030303030303030' seq:0, type:1](0)
+ 1691:67576896['000000000008FBE93030303030303030' seq:0, type:1 .. '00000000000A979F3030303030303030' seq:0, type:1](0)
+ 1706:67576912['00000000000A97A23030303030303030' seq:0, type:1 .. '00000000000C33103030303030303030' seq:0, type:1](0)
+ 1708:67576937['00000000000C33113030303030303030' seq:0, type:1 .. '00000000000DD95C3030303030303030' seq:0, type:1](0)
+ 1709:2970275['00000000000DD95E3030303030303030' seq:0, type:1 .. '00000000000DEE623030303030303030' seq:0, type:1](0)
+ 1360:67576941['00000000000DEE633030303030303030' seq:0, type:1 .. '00000000000FC7B63030303030303030' seq:0, type:1](0)
+ 1375:67576968['00000000000FC7B73030303030303030' seq:0, type:1 .. '000000000011A1323030303030303030' seq:0, type:1](0)
+ 1377:28278790['000000000011A1353030303030303030' seq:0, type:1 .. '000000000012677C3030303030303030' seq:1244784, type:1](0)
+ 1510:67576929['00000000001281533030303030303030' seq:0, type:1 .. '00000000001436D13030303030303030' seq:0, type:1](0)
+ 1526:28545230['00000000001436D23030303030303030' seq:0, type:1 .. '000000000014F0933030303030303030' seq:0, type:1](0)
+ 1535:67576909['000000000014F0943030303030303030' seq:0, type:1 .. '000000000016A73A3030303030303030' seq:0, type:1](0)
+ 1543:67576903['000000000016A73B3030303030303030' seq:0, type:1 .. '0000000000185E2E3030303030303030' seq:0, type:1](0)
+ 1730:67576872['0000000000185E303030303030303030' seq:0, type:1 .. '000000000019FF0C3030303030303030' seq:0, type:1](0)
+ 1746:67576932['000000000019FF0E3030303030303030' seq:0, type:1 .. '00000000001B93F03030303030303030' seq:0, type:1](0)
+ 1761:67576905['00000000001B93F13030303030303030' seq:0, type:1 .. '00000000001D26AD3030303030303030' seq:0, type:1](0)
+ 1763:12040413['00000000001D26AF3030303030303030' seq:0, type:1 .. '00000000001D6E753030303030303030' seq:0, type:1](0)
+ 925:67577034['000000000020B7653030303030303030' seq:0, type:1 .. '00000000002320093030303030303030' seq:0, type:1](0)
+--- level 3 --- version# 730 ---
+Numbers of Guards at Level: 6
+--- level 4 --- version# 730 ---
+Numbers of Guards at Level: 23
+--- level 5 --- version# 730 ---
+Numbers of Guards at Level: 87
+--- level 6 --- version# 730 ---
+Numbers of Guards at Level: 369
+
