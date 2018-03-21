@@ -27,10 +27,11 @@ def test(num_iters, num_inserts, num_reads, date, counter):
 
 clear = "sudo ./clear_cache.sh"
 clear_cmd = clear.split()
-date = "2018_03_01"
+date = "2018_03_20"
 counter = 0
 test(1, 2500000, 100000, date, counter)
 print("--------DONE WITH 1--------")
+"""
 sp.check_output(clear_cmd)
 counter += 1
 test(1, 2500000, 100000, date, counter)
@@ -69,6 +70,7 @@ test(1, 2500000, 100000, date, counter)
 print("--------DONE WITH 10--------")
 sp.check_output(clear_cmd)
 counter += 1
+"""
 """
 test(10, 500000, 125000)
 print("--------DONE WITH 2--------")

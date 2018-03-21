@@ -370,9 +370,9 @@ void CompactionJob::Prepare() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PREPARE);
 
-  std::fstream file;
-  file.open("file.txt", std::fstream::app);
-  auto start_time = std::chrono::high_resolution_clock::now();
+  //std::fstream file;
+  //file.open("file.txt", std::fstream::app);
+  //auto start_time = std::chrono::high_resolution_clock::now();
   // Generate file_levels_ for compaction berfore making Iterator
   auto* c = compact_->compaction;
   assert(c->column_family_data() != nullptr);
@@ -381,12 +381,12 @@ void CompactionJob::Prepare() {
 
   // Is this compaction producing files at the bottommost level?
   bottommost_level_ = c->bottommost_level();
-  auto end_time = std::chrono::high_resolution_clock::now();
-  file << "CompactionJob::Prepare() before form Subcompactions: ";
-  file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
-  file << "\n";
+  //auto end_time = std::chrono::high_resolution_clock::now();
+  //file << "CompactionJob::Prepare() before form Subcompactions: ";
+  //file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
+  //file << "\n";
 
-  start_time = std::chrono::high_resolution_clock::now();
+  //start_time = std::chrono::high_resolution_clock::now();
   if (c->ShouldFormSubcompactions()) {
     const uint64_t start_micros = env_->NowMicros();
     GenSubcompactionBoundaries();
@@ -405,11 +405,11 @@ void CompactionJob::Prepare() {
   } else {
     compact_->sub_compact_states.emplace_back(c, nullptr, nullptr);
   }
-  end_time = std::chrono::high_resolution_clock::now();
-  file << "CompactionJob::Prepare() form Subcompactions: ";
-  file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
-  file << "\n";
-  file.close();
+  //end_time = std::chrono::high_resolution_clock::now();
+  //file << "CompactionJob::Prepare() form Subcompactions: ";
+  //file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
+  //file << "\n";
+  //file.close();
 }
 
 struct RangeWithSize {
@@ -545,8 +545,8 @@ void CompactionJob::GenSubcompactionBoundaries() {
 Status CompactionJob::Run() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_RUN);
-  std::fstream file;
-  file.open("file.txt", std::fstream::app);
+  //std::fstream file;
+  //file.open("file.txt", std::fstream::app);
   TEST_SYNC_POINT("CompactionJob::Run():Start");
   log_buffer_->FlushBufferToLog();
   LogCompaction();
@@ -555,7 +555,7 @@ Status CompactionJob::Run() {
   assert(num_threads > 0);
   const uint64_t start_micros = env_->NowMicros();
 
-  auto start_time = std::chrono::high_resolution_clock::now();
+  //auto start_time = std::chrono::high_resolution_clock::now();
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
@@ -598,23 +598,23 @@ Status CompactionJob::Run() {
     }
   }
   compact_->compaction->SetOutputTableProperties(std::move(tp));
-  auto end_time = std::chrono::high_resolution_clock::now();
-  file << "CompactionJob::Run() content work: ";
-  file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
-  file << "\n";
+  //auto end_time = std::chrono::high_resolution_clock::now();
+  //file << "CompactionJob::Run() content work: ";
+  //file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
+  //file << "\n";
 
-  start_time = std::chrono::high_resolution_clock::now();
+  //start_time = std::chrono::high_resolution_clock::now();
   // Finish up all book-keeping to unify the subcompaction results
   AggregateStatistics();
   UpdateCompactionStats();
   RecordCompactionIOStats();
   LogFlush(db_options_.info_log);
   TEST_SYNC_POINT("CompactionJob::Run():End");
-  end_time = std::chrono::high_resolution_clock::now();
-  file << "CompactionJob::Run() end work: ";
-  file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
-  file << "\n";
-  file.close();
+  //end_time = std::chrono::high_resolution_clock::now();
+  //file << "CompactionJob::Run() end work: ";
+  //file << (std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time)).count();
+  //file << "\n";
+  //file.close();
 
   compact_->status = status;
   return status;

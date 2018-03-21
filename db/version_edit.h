@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <sstream>
 #include "rocksdb/cache.h"
 #include "db/dbformat.h"
 #include "util/arena.h"
@@ -131,10 +132,6 @@ struct FileMetaData {
     smallest_seqno = std::min(smallest_seqno, seqno);
     largest_seqno = std::max(largest_seqno, seqno);
   }
-
-  //void DebugPrint(bool with_median_and_max) {
-    //std::vector<uint64_t> file_sizes =
-  //}
 };
 
 /*
@@ -154,14 +151,47 @@ class GuardMetaData {
   mutable InternalKey smallest_;
   mutable InternalKey largest_;
   mutable std::vector<FileMetaData*> file_metas_;
-
-  void DebugPrint() {
-    printf("---------\n");
-    printf("\tSmallest: %s\n", smallest().DebugString().c_str());
-    printf("\tLargest: %s\n", largest().DebugString().c_str());
-    printf("\tNum FilesMetas: %d\n", (int)file_metas().size());
-    printf("---------\n");
+  int min_file_size() const {
+      std::vector<uint64_t> file_sizes;
+      for(std::vector<FileMetaData*>::iterator it = file_metas_.begin(); it != file_metas_.end(); ++it) {
+          file_sizes.push_back((*it)->fd.GetFileSize());
+      }
+      std::sort(file_sizes.begin(), file_sizes.end());
+      if(file_sizes.size() == 0) {
+          return -1;
+      }
+      return (int) (file_sizes.front());
   }
+  int median_file_size() const {
+      std::vector<uint64_t> file_sizes;
+      for(std::vector<FileMetaData*>::iterator it = file_metas_.begin(); it != file_metas_.end(); ++it) {
+          file_sizes.push_back((*it)->fd.GetFileSize());
+      }
+      std::sort(file_sizes.begin(), file_sizes.end());
+      int num_files = (int) file_sizes.size();
+      if(num_files == 0) {
+          return -1;
+      }
+      else if(num_files % 2 == 0) {
+          return (int) ((file_sizes[num_files / 2 - 1] + file_sizes[num_files / 2]) / 2);
+      }
+      else {
+          return (int) (file_sizes[num_files / 2]);
+      }
+      return -1;
+  }
+  int max_file_size() const {
+      std::vector<uint64_t> file_sizes;
+      for(std::vector<FileMetaData*>::iterator it = file_metas_.begin(); it != file_metas_.end(); ++it) {
+          file_sizes.push_back((*it)->fd.GetFileSize());
+      }
+      std::sort(file_sizes.begin(), file_sizes.end());
+      if(file_sizes.size() == 0) {
+          return -1;
+      }
+      return (int) (file_sizes.back());
+  }
+
 
  public:
 
@@ -184,6 +214,34 @@ class GuardMetaData {
   const InternalKey& largest() const { return largest_; }
   const InternalKey& smallest() const { return smallest_; }
   const std::vector<FileMetaData*>& file_metas() const { return file_metas_; }
+  std::string DebugString() const {
+    std::stringstream ss;
+    ss << "\tGuard Key: ";
+    ss << guard_key_.DebugString(std::hex);
+    ss << "\n";
+    if((int) (file_metas().size()) == 0) {
+        ss << "\tEmpty Guard\n";
+        return ss.str();
+    }
+    ss << "\tSmallest Key: ";
+    ss << smallest_.DebugString(std::hex);
+    ss << "\n";
+    ss << "\tLargest Key: ";
+    ss << largest_.DebugString(std::hex);
+    ss << "\n";
+    ss << "\tNum FileMetas: ";
+    ss << std::to_string((int) file_metas().size());
+    ss << "\n";
+    ss << "\tMin File Size: ";
+    ss << std::to_string(min_file_size());
+    ss << "\n";
+    ss << "\tMedian File Size: ";
+    ss << std::to_string(median_file_size());
+    ss << "\n";
+    ss << "\tMax File Size: ";
+    ss << std::to_string(max_file_size());
+    return ss.str();
+  }
 
   bool operator==(const GuardMetaData& other) const {
     return other.level() == this->level() &&
