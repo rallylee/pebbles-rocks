@@ -2716,7 +2716,7 @@ std::string Version::DebugString(bool hex, bool print_stats) {
     AppendNumberTo(&r, version_number_);
     r.append(" ---\n");
     r.append("Numbers of Guards at Level: ");
-    const GuardSet cur_guards = storage_info_.AllGuardsAtLevel(level);
+    const GuardSet cur_guards = storage_info()->AllGuardsAtLevel(level);
     AppendNumberTo(&r, cur_guards.size());
     r.append("\n");
     std::vector<int> num_files;
