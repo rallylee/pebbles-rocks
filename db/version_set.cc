@@ -2670,6 +2670,32 @@ void Version::AddLiveFiles(std::vector<FileDescriptor>* live) {
   }
 }
 
+uint64_t median(std::vector<uint64_t> v) {
+    if(v.size() == 0) {
+        return 0;
+    }
+    int n = v.size();
+    if(n % 2 == 0) {
+        return (uint64_t) ((v[n / 2 - 1] + v[n / 2]) / 2);
+    }
+    else {
+        return (uint64_t) (v[n / 2]);
+    }
+}
+
+int median(std::vector<int> v) {
+    if(v.size() == 0) {
+        return 0;
+    }
+    int n = v.size();
+    if(n % 2 == 0) {
+        return (int) ((v[n / 2 - 1] + v[n / 2]) / 2);
+    }
+    else {
+        return (int) (v[n / 2]);
+    }
+}
+
 std::string Version::DebugString(bool hex, bool print_stats) const {
   std::string r;
   for (int level = 0; level < storage_info_.num_levels_; level++) {
@@ -2685,24 +2711,82 @@ std::string Version::DebugString(bool hex, bool print_stats) const {
     r.append(" --- version# ");
     AppendNumberTo(&r, version_number_);
     r.append(" ---\n");
-    const std::vector<FileMetaData*>& files = storage_info_.files_[level];
-    for (size_t i = 0; i < files.size(); i++) {
-      r.push_back(' ');
-      AppendNumberTo(&r, files[i]->fd.GetNumber());
-      r.push_back(':');
-      AppendNumberTo(&r, files[i]->fd.GetFileSize());
-      r.append("[");
-      r.append(files[i]->smallest.DebugString(hex));
-      r.append(" .. ");
-      r.append(files[i]->largest.DebugString(hex));
-      r.append("]");
-      if (print_stats) {
-        r.append("(");
-        r.append(ToString(
-            files[i]->stats.num_reads_sampled.load(std::memory_order_relaxed)));
-        r.append(")");
+    r.append("Numbers of Guards at Level: ");
+    const GuardSet cur_guards = storage_info_.AllGuardsAtLevel(level);
+    AppendNumberTo(&r, cur_guards.size());
+    r.append("\n");
+    std::vector<int> num_files;
+    uint64_t sum_filesizes_in_level = 0;
+    for(auto it = cur_guards.begin(); it != cur_guards.end(); it++) {
+        const GuardMetaData& cur_guard = *it;
+        r.append("Guard Key: ");
+        r.append(cur_guard.guard_key().DebugString(hex));
+        r.append("\n");
+        std::vector<FileMetaData *> files = cur_guard.file_metas();
+        std::vector<uint64_t> file_sizes;
+        uint64_t sum_filesizes_in_guard = 0;
+        std::string tmpr;
+        for (FileMetaData *fmd : files) {
+          tmpr.append("\t\t");
+          AppendNumberTo(&tmpr, files[i]->fd.GetNumber());
+          tmpr.push_back(':');
+          auto tmp_size = fmd->fd.GetFileSize();
+          file_sizes.push_back(tmp_size);
+          sum_filesizes_in_guard += tmp_size;
+          AppendNumberTo(&tmpr, tmp_size);
+          tmpr.append("[");
+          tmpr.append(files[i]->smallest.DebugString(hex));
+          tmpr.append(" .. ");
+          tmpr.append(files[i]->largest.DebugString(hex));
+          tmpr.append("]");
+          if (print_stats) {
+            tmpr.append("(");
+            tmpr.append(ToString(
+                files[i]->stats.num_reads_sampled.load(std::memory_order_relaxed)));
+            tmpr.append(")");
+          }
+          tmpr.append("\n");
+        }
+        if(files.size() == 0) {
+            r.append("\tTotal Data in Guard: 0\n");
+        }
+        else {
+            r.append("\tSmallest key in guard: ");
+            r.append(cur_guard.smallest().DebugString(hex));
+            r.append("\n");
+            r.append("\tLargest key in guard: ");
+            r.append(cur_guard.largest().DebugString(hex));
+            r.append("\n");
+            r.append("\tNumber of files in guard: ");
+            num_files.push_back(files.size());
+            AppendNumberTo(&r, files.size());
+            r.append("\n");
+            std::sort(file_sizes.begin(), file_sizes.end());
+            r.append("\tMin file size in guard: ");
+            AppendNumberTo(&r, file_sizes.front());
+            r.append("\n");
+            r.append("\tMedian file size in guard: ");
+            AppendNumberTo(&r, median(file_sizes));
+            r.append("\n");
+            r.append("\tMax file size in guard: ");
+            AppendNumberTo(&r, file_sizes.back());
+            r.append("\n");
+            r.append(tmpr);
+            r.append("\t--------\n");
+            r.append("\tTotal Data in Guard: ");
+            AppendNumberTo(&r, sum_filesizes_in_guard);
+            r.append("\n");
+        }
+        sum_filesizes_in_level += sum_filesizes_in_guard;
       }
+      r.append("--------\n");
+      r.append("Median Num Files in Guard: ");
+      std::sort(num_files.begin(), num_files.end());
+      AppendNumberTo(&r, median(num_files));
       r.append("\n");
+      r.append("Total Data in Level: ");
+      AppendNumberTo(&r, sum_filesizes_in_level);
+      r.append("\n\n");
     }
   }
   return r;
