@@ -2696,7 +2696,7 @@ int median(std::vector<int> v) {
     }
 }
 
-std::string Version::DebugString(bool hex, bool print_stats) const {
+std::string Version::DebugString(bool hex, bool print_stats) {
   std::string r;
   for (int level = 0; level < storage_info_.num_levels_; level++) {
     // E.g.,
@@ -2712,7 +2712,7 @@ std::string Version::DebugString(bool hex, bool print_stats) const {
     AppendNumberTo(&r, version_number_);
     r.append(" ---\n");
     r.append("Numbers of Guards at Level: ");
-    const GuardSet cur_guards = storage_info_.AllGuardsAtLevel(level);
+    const GuardSet cur_guards = storage_info()->AllGuardsAtLevel(level);
     AppendNumberTo(&r, cur_guards.size());
     r.append("\n");
     std::vector<int> num_files;

@@ -610,7 +610,7 @@ class Version {
   void AddLiveFiles(std::vector<FileDescriptor>* live);
 
   // Return a human readable string that describes this version's contents.
-  std::string DebugString(bool hex = false, bool print_stats = false) const;
+  std::string DebugString(bool hex = false, bool print_stats = false);
 
   // Returns the version nuber of this version
   uint64_t GetVersionNumber() const { return version_number_; }
