@@ -1110,7 +1110,7 @@ void VersionStorageInfo::PopulateGuards(const ImmutableCFOptions& ioptions) {
 
   for (int level = 0; level < num_non_empty_levels_; level++) {
     //printf("BEGIN Populating guards on level %d\n", level);
-    GuardSet guards = GuardsAtLevel(level);
+    GuardSet guards = AllGuardsAtLevel(level);
     const std::vector<FileMetaData*>& files = files_[level];
     for (auto guard_iter = guards.begin(); guard_iter != guards.end();
          guard_iter++) {
@@ -1118,7 +1118,7 @@ void VersionStorageInfo::PopulateGuards(const ImmutableCFOptions& ioptions) {
       guard.file_metas_.clear();
       guard.largest_.Clear();
       guard.smallest_.Clear();
-      std::next(guard_iter);
+      //std::next(guard_iter);
       auto next_guard_iter = std::next(guard_iter);
       bool reached_end = next_guard_iter == guards.end();
       bool at_beginning = guard_iter == guards.begin();
@@ -1147,10 +1147,14 @@ void VersionStorageInfo::PopulateGuards(const ImmutableCFOptions& ioptions) {
           }
           assert(next_guard.guard_key().size() > 0);
           next_guard.guard_key().Encode();
-          if (internal_comparator_->Compare(largest_internal_key, next_guard.guard_key()) >= 0) {
-            //printf("Skipped putting file %p in guard %s bc largest key %s is larger than next guard %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str(), largest_internal_key.DebugString().c_str(), ((InternalKey)next_guard.guard_key()).DebugString().c_str());
-            continue;
+          if (internal_comparator_->Compare(smallest_internal_key, next_guard.guard_key()) >= 0) {
+            //printf("Skipped putting file %p in guard %s at level %d bc smallest key %s is larger than next guard %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str(), level, smallest_internal_key.DebugString(std::hex).c_str(), ((InternalKey)next_guard.guard_key()).DebugString(std::hex).c_str());
+              continue;
           }
+          //if (internal_comparator_->Compare(largest_internal_key, next_guard.guard_key()) >= 0) {
+            //printf("Skipped putting file %p in guard %s bc largest key %s is larger than next guard %s\n", file_metadata, ((InternalKey)guard.guard_key()).DebugString().c_str(), largest_internal_key.DebugString().c_str(), ((InternalKey)next_guard.guard_key()).DebugString().c_str());
+            //continue;
+          //}
         }
         if (guard.guard_key().size() > 0) {
           smallest_internal_key.Encode();
@@ -2670,9 +2674,22 @@ void Version::AddLiveFiles(std::vector<FileDescriptor>* live) {
   }
 }
 
+int median(std::vector<int> v) {
+    if(v.size() == 0) {
+        return 0;
+    }
+    int n = (int) (v.size());
+    if(n % 2 == 0) {
+        return (int) ((v[n / 2 - 1] + v[n / 2]) / 2);
+    }
+    else {
+        return v[n / 2];
+    }
+}
+
 uint64_t median(std::vector<uint64_t> v) {
     if(v.size() == 0) {
-        return -1;
+        return 0;
     }
     int n = (int) (v.size());
     if(n % 2 == 0) {
@@ -2745,6 +2762,7 @@ std::string Version::DebugString(bool hex, bool print_stats) {
           r.append(cur_guard.largest().DebugString(hex));
           r.append("\n");
           r.append("\tNumber of files in guard: ");
+          num_files.push_back(files.size());
           AppendNumberTo(&r, files.size());
           r.append("\n");
           std::sort(file_sizes.begin(), file_sizes.end());
@@ -2766,6 +2784,10 @@ std::string Version::DebugString(bool hex, bool print_stats) {
       sum_filesizes_in_level += sum_filesizes_in_guard;
     }
     r.append("--------\n");
+    r.append("Median Num Files in Guard: ");
+    std::sort(num_files.begin(), num_files.end());
+    AppendNumberTo(&r, median(num_files));
+    r.append("\n");
     r.append("Total Data in Level: ");
     AppendNumberTo(&r, sum_filesizes_in_level);
     r.append("\n\n");
