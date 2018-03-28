@@ -2728,21 +2728,21 @@ std::string Version::DebugString(bool hex, bool print_stats) const {
         std::string tmpr;
         for (FileMetaData *fmd : files) {
           tmpr.append("\t\t");
-          AppendNumberTo(&tmpr, files[i]->fd.GetNumber());
+          AppendNumberTo(&tmpr, fmd->fd.GetNumber());
           tmpr.push_back(':');
           auto tmp_size = fmd->fd.GetFileSize();
           file_sizes.push_back(tmp_size);
           sum_filesizes_in_guard += tmp_size;
           AppendNumberTo(&tmpr, tmp_size);
           tmpr.append("[");
-          tmpr.append(files[i]->smallest.DebugString(hex));
+          tmpr.append(fmd->smallest.DebugString(hex));
           tmpr.append(" .. ");
-          tmpr.append(files[i]->largest.DebugString(hex));
+          tmpr.append(fmd->largest.DebugString(hex));
           tmpr.append("]");
           if (print_stats) {
             tmpr.append("(");
             tmpr.append(ToString(
-                files[i]->stats.num_reads_sampled.load(std::memory_order_relaxed)));
+                fmd->stats.num_reads_sampled.load(std::memory_order_relaxed)));
             tmpr.append(")");
           }
           tmpr.append("\n");
@@ -2788,7 +2788,6 @@ std::string Version::DebugString(bool hex, bool print_stats) const {
       AppendNumberTo(&r, sum_filesizes_in_level);
       r.append("\n\n");
     }
-  }
   return r;
 }
 
