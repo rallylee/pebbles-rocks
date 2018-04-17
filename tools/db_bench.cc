@@ -19,5 +19,17 @@ int main() {
 }
 #else
 #include <rocksdb/db_bench_tool.h>
-int main(int argc, char** argv) { return rocksdb::db_bench_tool(argc, argv); }
+#include <thread>
+#include <chrono>
+#include <string>
+
+int main(int argc, char** argv) {
+    int toRet = rocksdb::db_bench_tool(argc, argv);
+    int secToWait = 30;
+    if (argc == 2) {
+        secToWait = std::stoi(argv[1]);
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(secToWait));
+    return toRet;
+}
 #endif  // GFLAGS
