@@ -139,7 +139,7 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
                        bool _manual_compaction, double _score,
                        bool _deletion_compaction,
                        CompactionReason _compaction_reason,
-                       std::vector<GuardMetaData> _input_guards)
+                       GuardMetaData _input_guard)
     : input_vstorage_(vstorage),
       start_level_(_inputs[0].level),
       output_level_(_output_level),
@@ -162,7 +162,7 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       is_trivial_move_(false),
       compaction_reason_(_compaction_reason),
       output_guards_(vstorage->AllGuardsAtLevel(output_level_)),
-      input_guards_(std::move(_input_guards)) {
+      input_guard_(_input_guard) {
   MarkFilesBeingCompacted(true);
   if (is_manual_compaction_) {
     compaction_reason_ = CompactionReason::kManualCompaction;
