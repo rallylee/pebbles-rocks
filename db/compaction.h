@@ -38,13 +38,15 @@ class Compaction {
   Compaction(VersionStorageInfo* input_version,
              const ImmutableCFOptions& immutable_cf_options,
              const MutableCFOptions& mutable_cf_options,
-             std::vector<CompactionInputFiles> inputs, int output_level,
+             std::vector<CompactionInputFiles> inputs,
+             int output_level,
              uint64_t target_file_size, uint64_t max_compaction_bytes,
              uint32_t output_path_id, CompressionType compression,
              std::vector<FileMetaData*> grandparents,
              bool manual_compaction = false, double score = -1,
              bool deletion_compaction = false,
-             CompactionReason compaction_reason = CompactionReason::kUnknown);
+             CompactionReason compaction_reason = CompactionReason::kUnknown,
+             std::vector<GuardMetaData> input_guards = *(new std::vector<GuardMetaData>()));
 
   // No copying allowed
   Compaction(const Compaction&) = delete;
@@ -109,6 +111,8 @@ class Compaction {
   }
 
   const std::vector<CompactionInputFiles>* inputs() { return &inputs_; }
+
+  const std::vector<GuardMetaData>* input_guards() { return &input_guards_;}
 
   // Returns the LevelFilesBrief of the specified compaction input level.
   const LevelFilesBrief* input_levels(size_t compaction_input_level) const {
@@ -326,6 +330,8 @@ class Compaction {
   CompactionReason compaction_reason_;
 
   GuardSet output_guards_;
+
+  const std::vector<GuardMetaData> input_guards_;
 };
 
 // Utility function
