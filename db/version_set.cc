@@ -1571,14 +1571,13 @@ void VersionStorageInfo::ComputeCompactionScore(
       }
     } else {
       // Compute the ratio of current size to size limit.
-      uint64_t level_bytes_no_compacting = 0;
-      for (auto f : files_[level]) {
-        if (!f->being_compacted) {
-          level_bytes_no_compacting += f->compensated_file_size;
+      uint64_t num_full_guards = 0;
+      for (auto g : this->complete_guards_.at(level)) {
+        if (!g.being_compacted) {
+	  num_full_guards += 1;
         }
       }
-      score = static_cast<double>(level_bytes_no_compacting) /
-              MaxBytesForLevel(level);
+	score = num_full_guards;
     }
     compaction_level_[level] = level;
     compaction_score_[level] = score;
