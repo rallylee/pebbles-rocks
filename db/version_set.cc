@@ -1572,12 +1572,15 @@ void VersionStorageInfo::ComputeCompactionScore(
     } else {
       // Compute the ratio of current size to size limit.
       uint64_t num_full_guards = 0;
-      for (auto g : this->complete_guards_.at(level)) {
+      GuardSet guards = this->AllGuardsAtLevel(level);
+      for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
+        const GuardMetaData g = *guard_iter;
         if (!g.being_compacted) {
-	  num_full_guards += 1;
+            num_full_guards++;
         }
       }
-	score = num_full_guards;
+      //score = static_cast<double>(level_bytes_no_compacting) / MaxBytesForLevel(level);
+	  score = num_full_guards;
     }
     compaction_level_[level] = level;
     compaction_score_[level] = score;
