@@ -1580,7 +1580,7 @@ void VersionStorageInfo::ComputeCompactionScore(
         }
       }
       //score = static_cast<double>(level_bytes_no_compacting) / MaxBytesForLevel(level);
-	  score = num_full_guards;
+	  score = num_full_guards / guards.size();
     }
     compaction_level_[level] = level;
     compaction_score_[level] = score;
