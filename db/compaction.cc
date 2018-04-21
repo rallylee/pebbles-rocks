@@ -168,6 +168,17 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
     compaction_reason_ = CompactionReason::kManualCompaction;
   }
 
+  if(_input_guard.level() != -1) {
+      GuardSet guards = vstorage->AllGuardsAtLevel(output_level_);
+      for(auto iter = guards.begin(); iter != guards.end(); iter++) {
+        const GuardMetaData& cur = *iter;
+        if(vstorage->InternalComparator()->Compare(_input_guard.smallest(), cur.smallest()) <= 0 &&
+            vstorage->InternalComparator()->Compare(cur.smallest(), _input_guard.largest()) <= 0) {
+            next_level_guard_vals_.push_back(cur.guard_key());
+        }
+      }
+  }
+
 #ifndef NDEBUG
   for (size_t i = 1; i < inputs_.size(); ++i) {
     assert(inputs_[i].level > inputs_[i - 1].level);

@@ -254,6 +254,8 @@ class Compaction {
 
   const GuardSet& output_guards() const { return output_guards_; }
 
+  std::vector<InternalKey> next_level_guard_vals() const { return next_level_guard_vals_; }
+
  private:
   // mark (or clear) all files that are being compacted
   void MarkFilesBeingCompacted(bool mark_as_compacted);
@@ -332,6 +334,8 @@ class Compaction {
   GuardSet output_guards_;
 
   const GuardMetaData input_guard_;
+
+  std::vector<InternalKey> next_level_guard_vals_;
 };
 
 // Utility function
