@@ -197,25 +197,33 @@ class GuardMetaData {
  public:
 
   GuardMetaData(int level, InternalKey guard_key)
-    : level_(level), guard_key_(guard_key), being_compacted(false) {
+    : level_(level), guard_key_(guard_key) {
     marked_for_compaction_ = false;
   }
 
   GuardMetaData(int level)
-    : level_(level), being_compacted(false) {
+    : level_(level) {
     marked_for_compaction_ = false;
   }
 
   GuardMetaData(const GuardMetaData& other)
     : level_(other.level_), guard_key_(other.guard_key_),
       smallest_(other.smallest_), largest_(other.largest_),
-      file_metas_(other.file_metas_), being_compacted(false) {
+      file_metas_(other.file_metas_) {
     marked_for_compaction_ = false;
   }
 
   int level() const { return level_; }
   void markForCompaction() { this->marked_for_compaction_ = true; }
   bool isSentinel() const { return this->guard_key().size() == 0; }
+  bool beingCompacted() const {
+      for (auto f : file_metas()) {
+          if (f->being_compacted) {
+              return true;
+          }
+      }
+      return false;
+  }
   const InternalKey& guard_key() const { return guard_key_; }
   const InternalKey& largest() const { return largest_; }
   const InternalKey& smallest() const { return smallest_; }
@@ -257,8 +265,7 @@ class GuardMetaData {
   bool operator!=(GuardMetaData& other) { return !(*this == other); }
 
   friend class VersionStorageInfo;
-  
-  bool being_compacted;
+
 };
 
 // A compressed copy of file meta data that just contain minimum data needed

@@ -1087,7 +1087,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
-    if (start_level_score_ >= 0) {
+    if (start_level_score_ > 0) {
       if (skipped_l0_to_base && start_level_ == vstorage_->base_level()) {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
@@ -1351,19 +1351,28 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   // being compacted
   GuardSet level_guards = vstorage_->AllGuardsAtLevel(start_level_);
 
+  unsigned int cmp_idx = vstorage_->NextCompactionIndex(start_level_);
+  unsigned int guard_idx = 0;
   for (auto guard_iter = level_guards.begin(); guard_iter != level_guards.end(); guard_iter++) {
     const GuardMetaData g = *guard_iter;
+    if (guard_idx < cmp_idx) {
+        guard_idx++;
+        continue;
+    }
 
-    // do not pick a file to compact if it is being compacted
-    // from n-1 level.
-    if (g.being_compacted || g.file_metas().size() <= 4) {
-      continue;
-    }
+    cmp_idx++;
+      // do not pick a file to compact if it is being compacted
+      // from n-1 level.
+      if (g.beingCompacted() || g.file_metas().size() <= 4) {
+        continue;
+      }
+      if (start_level_ == 0 && g.file_metas().size() <= 12) {
+          continue;
+      }
     for (auto f : g.file_metas()) {
-	start_level_inputs_.files.push_back(f);
-	printf("compacting %s\n", f->smallest.DebugString(true).c_str());
+        start_level_inputs_.files.push_back(f);
     }
-    printf("\n");
+      printf("compacting %s at index %d on level %d\n", g.guard_key().DebugString(true).c_str(), cmp_idx-1, start_level_);
     start_level_inputs_.level = start_level_;
     if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
                                                     &start_level_inputs_) ||
@@ -1393,11 +1402,13 @@ bool LevelCompactionBuilder::PickFileToCompact() {
       start_level_inputs_.clear();
       continue;
     }
+    cmp_idx--;
     break;
   }
 
   // store where to start the iteration in the next call to PickCompaction
-  vstorage_->SetNextCompactionIndex(start_level_, 0);
+    printf("setting next compaction index at level %d to index %d\n", start_level_, cmp_idx);
+  vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
 
   return start_level_inputs_.size() > 0;
 }
