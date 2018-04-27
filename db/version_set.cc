@@ -1575,7 +1575,7 @@ void VersionStorageInfo::ComputeCompactionScore(
       GuardSet guards = this->AllGuardsAtLevel(level);
       for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
         const GuardMetaData g = *guard_iter;
-        if (!g.being_compacted) {
+        if (!g.being_compacted && g.file_metas().size() > 4) {
             num_full_guards++;
         }
       }

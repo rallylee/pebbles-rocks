@@ -105,7 +105,6 @@ class CompactionPicker {
       std::unordered_set<uint64_t>* input_set,
       const VersionStorageInfo* vstorage,
       const CompactionOptions& compact_options) const;
-
   // Is there currently a compaction involving level 0 taking place
   bool IsLevel0CompactionInProgress() const {
     return !level0_compactions_in_progress_.empty();
