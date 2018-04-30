@@ -439,7 +439,7 @@ void CompactionJob::GenSubcompactionBoundaries() {
       bounds.emplace_back(guard.guard_key().user_key());
     }
   }
-
+  /*
   // Add the starting and/or ending key of certain input files as a potential
   // boundary
   for (size_t lvl_idx = 0; lvl_idx < c->num_input_levels(); lvl_idx++) {
@@ -476,6 +476,7 @@ void CompactionJob::GenSubcompactionBoundaries() {
       }
     }
   }
+  */
 
   std::sort(bounds.begin(), bounds.end(),
     [cfd_comparator] (const Slice& a, const Slice& b) -> bool {

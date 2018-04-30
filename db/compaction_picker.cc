@@ -1372,7 +1372,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     for (auto f : g.file_metas()) {
         start_level_inputs_.files.push_back(f);
     }
-      printf("compacting %s at index %d on level %d\n", g.guard_key().DebugString(true).c_str(), cmp_idx-1, start_level_);
+      //printf("compacting %s at index %d on level %d\n", g.guard_key().DebugString(true).c_str(), cmp_idx-1, start_level_);
     start_level_inputs_.level = start_level_;
     if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
                                                     &start_level_inputs_) ||
@@ -1407,7 +1407,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
   }
 
   // store where to start the iteration in the next call to PickCompaction
-    printf("setting next compaction index at level %d to index %d\n", start_level_, cmp_idx);
+    //printf("setting next compaction index at level %d to index %d\n", start_level_, cmp_idx);
   vstorage_->SetNextCompactionIndex(start_level_, cmp_idx);
 
   return start_level_inputs_.size() > 0;

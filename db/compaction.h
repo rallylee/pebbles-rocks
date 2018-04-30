@@ -46,7 +46,7 @@ class Compaction {
              bool manual_compaction = false, double score = -1,
              bool deletion_compaction = false,
              CompactionReason compaction_reason = CompactionReason::kUnknown,
-             GuardMetaData input_guard = *(new GuardMetaData(-1)));
+             std::vector<GuardMetaData> input_guards = *(new std::vector<GuardMetaData>()));
 
   // No copying allowed
   Compaction(const Compaction&) = delete;
@@ -112,7 +112,7 @@ class Compaction {
 
   const std::vector<CompactionInputFiles>* inputs() { return &inputs_; }
 
-  const GuardMetaData input_guard() { return input_guard_;}
+  const std::vector<GuardMetaData>* input_guards() { return &input_guards_;}
 
   // Returns the LevelFilesBrief of the specified compaction input level.
   const LevelFilesBrief* input_levels(size_t compaction_input_level) const {
@@ -333,7 +333,7 @@ class Compaction {
 
   GuardSet output_guards_;
 
-  const GuardMetaData input_guard_;
+  const std::vector<GuardMetaData> input_guards_;
 
   std::vector<InternalKey> next_level_guard_vals_;
 };

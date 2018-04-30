@@ -139,7 +139,7 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
                        bool _manual_compaction, double _score,
                        bool _deletion_compaction,
                        CompactionReason _compaction_reason,
-                       GuardMetaData _input_guard)
+                       std::vector<GuardMetaData> _input_guards)
     : input_vstorage_(vstorage),
       start_level_(_inputs[0].level),
       output_level_(_output_level),
@@ -162,12 +162,12 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
       is_trivial_move_(false),
       compaction_reason_(_compaction_reason),
       output_guards_(vstorage->AllGuardsAtLevel(output_level_)),
-      input_guard_(_input_guard) {
+      input_guards_(_input_guards) {
   MarkFilesBeingCompacted(true);
   if (is_manual_compaction_) {
     compaction_reason_ = CompactionReason::kManualCompaction;
   }
-
+  /*
   if(_input_guard.level() != -1) {
       GuardSet guards = vstorage->AllGuardsAtLevel(output_level_);
       for(auto iter = guards.begin(); iter != guards.end(); iter++) {
@@ -177,7 +177,8 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
             next_level_guard_vals_.push_back(cur.guard_key());
         }
       }
-  }
+  }*/
+  // if(_input_guards.size() != 0) {} Do the stuff here?
 
 #ifndef NDEBUG
   for (size_t i = 1; i < inputs_.size(); ++i) {
