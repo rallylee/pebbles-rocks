@@ -1087,7 +1087,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
-    if (start_level_score_ > 0) {
+    if (start_level_score_ >= 1) {
       if (skipped_l0_to_base && start_level_ == vstorage_->base_level()) {
         // If L0->base_level compaction is pending, don't schedule further
         // compaction from base level. Otherwise L0->base_level compaction
@@ -1100,9 +1100,11 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // found the compaction!
         if (start_level_ == 0) {
           // L0 score = `num L0 files` / `level0_file_num_compaction_trigger`
+            printf("kLevelL0FilesNum\n");
           compaction_reason_ = CompactionReason::kLevelL0FilesNum;
         } else {
           // L1+ score = `Level files size` / `MaxBytesForLevel`
+            printf("kLevelMaxLevelSize\n");
           compaction_reason_ = CompactionReason::kLevelMaxLevelSize;
         }
         break;
@@ -1120,6 +1122,7 @@ void LevelCompactionBuilder::SetupInitialFiles() {
           // L0.
           if (PickIntraL0Compaction()) {
             output_level_ = 0;
+              printf("kLevelL0FilesNum\n");
             compaction_reason_ = CompactionReason::kLevelL0FilesNum;
             break;
           }
@@ -1153,9 +1156,11 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         start_level_inputs_.clear();
       } else {
         assert(!start_level_inputs_.empty());
+          printf("kBottommostFiles\n");
         compaction_reason_ = CompactionReason::kBottommostFiles;
       }
     } else {
+        printf("kFilesMarkedForCompaction\n");
       compaction_reason_ = CompactionReason::kFilesMarkedForCompaction;
     }
   }
@@ -1363,7 +1368,12 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     cmp_idx++;
       // do not pick a file to compact if it is being compacted
       // from n-1 level.
-      if (g.beingCompacted() || g.file_metas().size() <= 4) {
+
+      if (start_level_ > 0 && (g.beingCompacted() || vstorage_->GuardCompactionScoresAtLevel(start_level_).size() <= guard_idx ||
+                                vstorage_->GuardCompactionScoresAtLevel(start_level_)[guard_idx] < 1.0)) {
+          if (vstorage_->GuardCompactionScoresAtLevel(start_level_).size() <= guard_idx ) {
+              printf("guard compaction scores aren't filled at level %d at index %d\n", start_level_, guard_idx);
+          }
         continue;
       }
       if (start_level_ == 0 && g.file_metas().size() <= 12) {
@@ -1372,7 +1382,11 @@ bool LevelCompactionBuilder::PickFileToCompact() {
     for (auto f : g.file_metas()) {
         start_level_inputs_.files.push_back(f);
     }
-      //printf("compacting %s at index %d on level %d\n", g.guard_key().DebugString(true).c_str(), cmp_idx-1, start_level_);
+    if (start_level_inputs_.files.empty()) {
+          printf("empty files with compaction score of %f", vstorage_->GuardCompactionScoresAtLevel(start_level_)[guard_idx]);
+          continue;
+      }
+      printf("compacting %s at index %d on level %d\n", g.guard_key().DebugString(true).c_str(), cmp_idx-1, start_level_);
     start_level_inputs_.level = start_level_;
     if (!compaction_picker_->ExpandInputsToCleanCut(cf_name_, vstorage_,
                                                     &start_level_inputs_) ||

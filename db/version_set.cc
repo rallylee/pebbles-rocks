@@ -53,6 +53,17 @@
 #include "util/sync_point.h"
 
 namespace rocksdb {
+    static double MaxBytesPerGuardForLevel(unsigned level) {
+      static const double bytes[] = {64 * 1048576.0,
+                                     128 * 1048576.0,
+                                     256 * 1048576.0,
+                                     512 * 1048576.0,
+                                     512 * 1048576.0,
+                                     1024 * 1048576.0,
+                                     2048 * 1048576.0};
+      return bytes[level];
+    }
+
 
 namespace {
 
@@ -1509,7 +1520,11 @@ void VersionStorageInfo::ComputeCompactionScore(
     const ImmutableCFOptions& immutable_cf_options,
     const MutableCFOptions& mutable_cf_options) {
   for (int level = 0; level <= MaxInputLevel(); level++) {
-    double score;
+      if(this->guard_compaction_scores_.size() <= static_cast<uint64_t>(level)) {
+          this->guard_compaction_scores_.resize(level + 1);
+      }
+    this->guard_compaction_scores_[level].clear();
+    double score = 0;
     if (level == 0) {
       // We treat level-0 specially by bounding the number of files
       // instead of number of bytes for two reasons:
@@ -1571,16 +1586,30 @@ void VersionStorageInfo::ComputeCompactionScore(
       }
     } else {
       // Compute the ratio of current size to size limit.
-      uint64_t num_full_guards = 0;
+//      uint64_t num_full_guards = 0;
       GuardSet guards = this->AllGuardsAtLevel(level);
+      double max_score_in_level = 0;
+      double score1, score2;
+      int index = 0;
       for (auto guard_iter = guards.begin(); guard_iter != guards.end(); guard_iter++) {
         const GuardMetaData g = *guard_iter;
-        if (!g.beingCompacted() && g.file_metas().size() > 4) {
-            num_full_guards++;
+        if (!g.beingCompacted() ) {
+          const uint64_t guard_file_bytes = TotalFileSize(g.file_metas());
+          score1 = guard_file_bytes / MaxBytesPerGuardForLevel(level);
+          score2 = static_cast<double>(g.file_metas().size()) / static_cast<double>(2 + 1);
+          score = std::max(score1, score2);
+            if(this->guard_compaction_scores_.size() <= static_cast<uint64_t>(level)) {
+                this->guard_compaction_scores_.resize(level + 1);
+            }
+          this->guard_compaction_scores_[level].push_back(score);
+          max_score_in_level = std::max(max_score_in_level, score);
+//          printf("setting compaction score at level %d at index %d\n", level, index);
+          index++;
+          score = max_score_in_level;
         }
       }
       //score = static_cast<double>(level_bytes_no_compacting) / MaxBytesForLevel(level);
-	  score = num_full_guards / guards.size();
+//	  score = num_full_guards / guards.size();
     }
     compaction_level_[level] = level;
     compaction_score_[level] = score;
@@ -2574,6 +2603,13 @@ GuardSet VersionStorageInfo::GuardsAtLevel(int level) {
     return GuardSet(guard_set_comparator_, sentinels_.at(level), dummy.begin(), dummy.end(), dummy.begin(), dummy.end());
   }
 }
+
+std::vector<double> VersionStorageInfo::GuardCompactionScoresAtLevel(int level) {
+    if(this->guard_compaction_scores_.size() <= static_cast<uint64_t>(level)) {
+        this->guard_compaction_scores_.resize(level + 1);
+    }
+      return this->guard_compaction_scores_[level];
+    }
 
 GuardSet VersionStorageInfo::AllGuardsAtLevel(int level) {
   assert(level < num_levels_);

@@ -482,7 +482,7 @@ class VersionStorageInfo {
   // These are used to pick the best compaction level
   std::vector<double> compaction_score_;
   std::vector<int> compaction_level_;
-  int l0_delay_trigger_count_ = 0;  // Count used to trigger slow down and stop
+    int l0_delay_trigger_count_ = 0;  // Count used to trigger slow down and stop
                                     // for number of L0 files.
 
   // the following are the sampled temporary stats.
@@ -527,6 +527,8 @@ class VersionStorageInfo {
   std::unordered_map<int, std::set<GuardMetaData, GuardSetComparator>>
       complete_guards_;
 
+  std::vector<std::vector<double>> guard_compaction_scores_;
+
   void AddCompleteGuard(const GuardMetaData& g);
 
  public:
@@ -545,6 +547,7 @@ class VersionStorageInfo {
 
   GuardSet GuardsAtLevel(int level);
   GuardSet AllGuardsAtLevel(int level);
+    std::vector<double> GuardCompactionScoresAtLevel(int level);
   const GuardSetComparator& guard_set_comparator() const {
     return guard_set_comparator_;
   }
