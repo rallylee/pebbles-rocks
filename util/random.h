@@ -125,13 +125,13 @@ class RandomZipf {
           skew_(skew),
           cardinality_(cardinality) {
       double c = 0;
-      for (int i = 1; i <= cardinality; ++i) {
+      for (uint32_t i = 1; i <= cardinality; ++i) {
         c += (1.0 / pow((double) i, skew));
       }
       c = 1.0 / c;
       sum_probs_ = (double*) malloc((cardinality + 1) * sizeof(*sum_probs_));
       sum_probs_[0] = 0;
-      for (int i = 1; i <= cardinality; ++i) {
+      for (uint32_t i = 1; i <= cardinality; ++i) {
         sum_probs_[i] = sum_probs_[i - 1] + c / (pow((double) i, skew));
       }
     }
@@ -146,7 +146,7 @@ class RandomZipf {
 
     // Map z to the value
     uint32_t low = 1, high = cardinality_, mid;
-    uint32_t zipf_value;
+    uint32_t zipf_value = 0;
     do {
       mid = (uint32_t) floor((low+high)/2);
       if (sum_probs_[mid] >= random_val && sum_probs_[mid-1] < random_val) {

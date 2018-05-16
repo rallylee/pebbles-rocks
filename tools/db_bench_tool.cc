@@ -3422,7 +3422,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
   void WriteZipfian(ThreadState* thread) {
     DoWrite(thread, ZIPFIAN);
   }
-}
+
 
   class KeyGenerator {
    public:
@@ -3447,7 +3447,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       }
     }
 
-    KeyGenerator(RandZipf* rand) : randzipf_(rand), mode_(ZIPFIAN) { }
+    KeyGenerator(RandomZipf* rand, uint64_t num) : randzipf_(rand), mode_(ZIPFIAN), num_(num) { }
 
     uint64_t Next() {
       switch (mode_) {
@@ -3510,7 +3510,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     Duration duration(test_duration, max_ops, ops_per_stage);
     for (size_t i = 0; i < num_key_gens; i++) {
       if (write_mode == ZIPFIAN) {
-        key_gens[i].reset(new KeyGenerator(new RandomZipf(&(thread->rand), 1.0, num_)));
+        key_gens[i].reset(new KeyGenerator(new RandomZipf(&(thread->rand), 1.0, num_), num_));
       } else {
         key_gens[i].reset(new KeyGenerator(&(thread->rand), write_mode, num_,
                                          ops_per_stage));
