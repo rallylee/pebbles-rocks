@@ -10,6 +10,7 @@
 #pragma once
 #include <random>
 #include <stdint.h>
+#include <assert.h>
 
 namespace rocksdb {
 
@@ -94,6 +95,10 @@ class Random64 {
     return std::uniform_int_distribution<uint64_t>(0, n - 1)(generator_);
   }
 
+  double UniformReal() {
+    return std::uniform_real_distribution<double>(0, 1)(generator_);
+  }
+
   // Randomly returns true ~"1/n" of the time, and false otherwise.
   // REQUIRES: n > 0
   bool OneIn(uint64_t n) { return Uniform(n) == 0; }
@@ -103,6 +108,60 @@ class Random64 {
   // range [0,2^max_log-1] with exponential bias towards smaller numbers.
   uint64_t Skewed(int max_log) {
     return Uniform(uint64_t(1) << Uniform(max_log + 1));
+  }
+};
+
+// A simple random number generator for zipfian distributions
+class RandomZipf {
+  private:
+    Random64* random_;
+    double* sum_probs_;
+    double skew_;
+    uint32_t cardinality_;
+
+  public:
+    explicit RandomZipf(Random64* rand, double skew, uint32_t cardinality)
+        : random_(rand),
+          skew_(skew),
+          cardinality_(cardinality) {
+      double c = 0;
+      for (int i = 1; i <= cardinality; ++i) {
+        c += (1.0 / pow((double) i, skew));
+      }
+      c = 1.0 / c;
+      sum_probs_ = (double*) malloc((cardinality + 1) * sizeof(*sum_probs_));
+      sum_probs_[0] = 0;
+      for (int i = 1; i <= cardinality; ++i) {
+        sum_probs_[i] = sum_probs_[i - 1] + c / (pow((double) i, skew));
+      }
+    }
+
+  uint32_t Next() {
+    double random_val;
+    do
+    {
+      random_val = random_ ->UniformReal();
+    }
+    while ((random_val == 0) || (random_val == 1));
+
+    // Map z to the value
+    uint32_t low = 1, high = cardinality_, mid;
+    uint32_t zipf_value;
+    do {
+      mid = (uint32_t) floor((low+high)/2);
+      if (sum_probs_[mid] >= random_val && sum_probs_[mid-1] < random_val) {
+        zipf_value = mid;
+        break;
+      } else if (sum_probs_[mid] >= random_val) {
+        high = mid-1;
+      } else {
+        low = mid+1;
+      }
+    } while (low <= high);
+
+    assert((zipf_value >=1) && (zipf_value <= cardinality_));
+
+    return zipf_value;
   }
 };
 

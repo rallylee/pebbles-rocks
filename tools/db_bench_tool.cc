@@ -2403,6 +2403,9 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       } else if (name == "fillrandom") {
         fresh_db = true;
         method = &Benchmark::WriteRandom;
+      } else if (name == "fillzipfian") {
+        fresh_db = true;
+        method = &Benchmark::WriteZipfian;
       } else if (name == "filluniquerandom") {
         fresh_db = true;
         if (num_threads > 1) {
@@ -3392,7 +3395,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
   }
 
   enum WriteMode {
-    RANDOM, SEQUENTIAL, UNIQUE_RANDOM
+    RANDOM, SEQUENTIAL, UNIQUE_RANDOM, ZIPFIAN
   };
 
   void WriteSeqDeterministic(ThreadState* thread) {
@@ -3415,6 +3418,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
   void WriteUniqueRandom(ThreadState* thread) {
     DoWrite(thread, UNIQUE_RANDOM);
   }
+
+  void WriteZipfian(ThreadState* thread) {
+    DoWrite(thread, ZIPFIAN);
+  }
+}
 
   class KeyGenerator {
    public:
@@ -3439,6 +3447,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       }
     }
 
+    KeyGenerator(RandZipf* rand) : randzipf_(rand), mode_(ZIPFIAN) { }
+
     uint64_t Next() {
       switch (mode_) {
         case SEQUENTIAL:
@@ -3448,6 +3458,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
         case UNIQUE_RANDOM:
           assert(next_ + 1 < num_);
           return values_[next_++];
+        case ZIPFIAN:
+          return randzipf_ -> Next();
       }
       assert(false);
       return std::numeric_limits<uint64_t>::max();
@@ -3455,6 +3467,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
 
    private:
     Random64* rand_;
+    RandomZipf* randzipf_;
     WriteMode mode_;
     const uint64_t num_;
     uint64_t next_;
@@ -3496,8 +3509,12 @@ void VerifyDBFromDB(std::string& truth_db_name) {
 
     Duration duration(test_duration, max_ops, ops_per_stage);
     for (size_t i = 0; i < num_key_gens; i++) {
-      key_gens[i].reset(new KeyGenerator(&(thread->rand), write_mode, num_,
+      if (write_mode == ZIPFIAN) {
+        key_gens[i].reset(new KeyGenerator(new RandomZipf(&(thread->rand), 1.0, num_)));
+      } else {
+        key_gens[i].reset(new KeyGenerator(&(thread->rand), write_mode, num_,
                                          ops_per_stage));
+      }
     }
 
     if (num_ != FLAGS_num) {
