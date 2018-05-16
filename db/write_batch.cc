@@ -1437,7 +1437,7 @@ class MemTableInserter : public WriteBatch::Handler {
     return &GetPostMap()[mem];
   }
 
-  constexpr static unsigned top_level_bits = 22;
+  constexpr static unsigned top_level_bits = 23;
   constexpr static int bit_decrement = 2;
 };
 

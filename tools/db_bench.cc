@@ -25,7 +25,7 @@ int main() {
 
 int main(int argc, char** argv) {
     int toRet = rocksdb::db_bench_tool(argc, argv);
-    int secToWait = 30;
+    int secToWait = 0;
     if (argc == 2) {
         secToWait = std::stoi(argv[1]);
     }

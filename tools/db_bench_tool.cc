@@ -23,6 +23,8 @@
 #include <gflags/gflags.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <iostream>
+#include <fstream>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <atomic>
@@ -3459,7 +3461,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
           assert(next_ + 1 < num_);
           return values_[next_++];
         case ZIPFIAN:
-          return randzipf_ -> Next();
+          uint64_t toRet = randzipf_ -> Next();
+          std::ofstream myfile("keys_inserted.txt", std::ios::out | std::ios::app);
+          myfile << std::to_string(toRet) << std::endl;
+          myfile.close();
+          return toRet;
       }
       assert(false);
       return std::numeric_limits<uint64_t>::max();
